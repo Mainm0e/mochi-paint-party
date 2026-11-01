@@ -67,6 +67,51 @@ Start with **Puffy** and **Stone** in the first chapter; add one or two per chap
 - **Doodle friends:** each chapter frees a doodle NPC who moves to the Home Page, chats, gives hints and reacts to your emotes.
 - **Home Page:** your hub page. Decorate with earned stickers, re-dress your mochi in the creator, see friends, pick a page from the book.
 
+## World design
+
+![World map overview](world_concept/map_overview.png)
+
+Concept renders in [world_concept/](world_concept/) (overview, each chapter, the Ink Bloom and the castle). Rebuild them
+with `"$G" --path godot --resolution 1600x900 -- --worldmap=<abs dir>`; the diorama is `_build_worldmap()` in `world.gd`.
+
+### The Book Map
+
+The overworld is the sketchbook itself, lying open. Each chapter is a region drawn across its pages; you walk your
+mochi around the map freely (not only node to node), and **level stamps** are joined by dotted ink paths.
+
+- Paths draw themselves in when a page is painted; painting a page fully can reveal **secret paths** to bonus stamps.
+- **The Ink Bloom**, a giant living flower, grows from the crease in the middle; it opens up as chapters are finished.
+- **The Eraser's castle** stands beyond the top edge of the book: a big pink eraser with pencil towers. It opens
+  once enough Bloom Stars are collected.
+
+### Wonder moments: Ink Blooms
+
+Inspired by how the best platformers surprise you halfway through a level, but built from our own idea:
+
+- Each level hides one **Bloom Doodle**, a glowing doodle that is hard to miss but tricky to reach.
+- **Eat it, and the page comes alive for a while.** The rules of the level change: the music shifts, colors run
+  wild, and the mochi's face reacts. Clear the Bloom challenge to earn a **Bloom Star**.
+- Bloom Stars are the main progression collectible (paint drops color the page; stickers are secrets; Bloom Stars
+  open new chapters and the castle).
+
+### Chapters
+
+| Chapter | Look | New power | Level ideas | Its Ink Bloom |
+|---|---|---|---|---|
+| 1. Meadow | rolling hills, flowers, mushrooms | Puffy, Stone | gaps, switches, Smudgie herds | flowers stretch into giant bouncy trampolines that hum a tune; the grass rolls like waves |
+| 2. Village | rooftops, chimneys, laundry lines, a windmill | Sketch (draw bridges) | rooftop runs, windmill platforms | the houses stand up on little legs and march, turning into moving staircases |
+| 3. Seaside | painted sea, islets, bubbles, a lighthouse | Bubble | tides, bubble rides, lighthouse beam | the page tilts and the sea pours sideways: swim through falling water |
+| 4. Snowy Notebook | snow mounds, pines, ice crystals | Toasty, Boing | slippery slopes, ice to melt | night falls and the constellations become paths in the sky |
+| The Eraser's castle | eraser blocks, pencil towers, blank paper | (all) | a page that rubs itself out behind you | the Eraser itself, in a final chase |
+
+### Level design rules
+
+1. **One idea per level:** introduce it safely, develop it, twist it, then a finale that tests it.
+2. **Short and dense:** 5–10 minutes on a first run, a surprise every minute or so.
+3. **Readable at a glance:** a bright landmark always shows where to head; the Paint Seal is visible early.
+4. **Curiosity pays:** stickers off the main path, a Bloom Doodle in a spot that makes you ask "how do I get there?".
+5. **Gentle failure:** generous checkpoint flags, instant redraws, nothing lost.
+
 ## Session and audience
 
 - Cozy-looking but with real platforming and secrets: aimed at casual players who like a bit of challenge.

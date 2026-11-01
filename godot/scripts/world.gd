@@ -52,6 +52,8 @@ func load_level(name: String, eaten: Array = []) -> void:
 	_build_void()
 	if name == "home":
 		_build_home()
+	elif name == "worldmap":
+		_build_worldmap()
 	else:
 		_build_meadow1()
 	for e in edibles:
@@ -177,7 +179,8 @@ func _star_mesh(outer: float, inner: float, depth: float) -> ArrayMesh:
 		for i in 10:
 			var a := pts[i]
 			var b := pts[(i + 1) % 10]
-			var tri := [Vector3(0, 0, side * depth), Vector3(a.x, a.y, side * depth), Vector3(b.x, b.y, side * depth)]
+			# Godot treats clockwise triangles as front faces, so each face is wound clockwise from outside
+			var tri := [Vector3(0, 0, side * depth), Vector3(b.x, b.y, side * depth), Vector3(a.x, a.y, side * depth)]
 			if side < 0:
 				tri = [tri[0], tri[2], tri[1]]
 			for v in tri:
@@ -186,7 +189,7 @@ func _star_mesh(outer: float, inner: float, depth: float) -> ArrayMesh:
 		var a := pts[i]
 		var b := pts[(i + 1) % 10]
 		var q := [Vector3(a.x, a.y, depth), Vector3(a.x, a.y, -depth), Vector3(b.x, b.y, -depth), Vector3(b.x, b.y, depth)]
-		for v in [q[0], q[1], q[2], q[0], q[2], q[3]]:
+		for v in [q[0], q[2], q[1], q[0], q[3], q[2]]:
 			st.add_vertex(v)
 	st.generate_normals()
 	return st.commit()
@@ -605,6 +608,149 @@ func _build_meadow1() -> void:
 	paint_seal(Vector3(0, 0.3, -51.2))
 	sticker("s5", Vector3(1.5, 0.3, -52.1))  # peek behind the seal
 	_tree(Vector3(-1.4, 0.3, -52.0), 0.8)
+
+
+# ================================================================== world map (concept diorama)
+## The whole book as one map: an open sketchbook whose two pages hold the four chapter regions,
+## linked by dotted ink paths between level stamps, the Eraser's castle beyond the top edge and a
+## giant Ink Bloom in the middle. Built for concept renders (`-- --worldmap=<dir>`).
+func _build_worldmap() -> void:
+	var top := 0.3
+	# the open book: cover, page stack, two pages, the crease
+	var cover := doodle(_box(46, 0.5, 29), "b8665f", Vector3(0, -0.55, 0), 0.06, true)
+	add_child(cover)
+	add_child(doodle(_box(44.5, 0.5, 27.4), "f3ead8", Vector3(0, -0.15, 0), 0.04, true))
+	island(-11.1, 0, 21.8, 26.6, top, "fbf5e6", 0.4)
+	island(11.1, 0, 21.8, 26.6, top, "fbf5e6", 0.4)
+	add_child(doodle(_box(0.25, 0.05, 26.6), "d8cdb6", Vector3(0, top + 0.01, 0), 0.0, true))
+	var y := top
+	for h in [[-14.8, 7.2, 2.0], [-20.2, 4.2, 1.5], [-4.6, 12.0, 1.3], [-14.0, 1.6, 1.4], [-3.8, 5.0, 1.5]]:
+		var hill := doodle(_sphere(h[2], 18, 10, true), "a9dd8f", Vector3(h[0], y, h[1]), 0.05)
+		hill.scale = Vector3(1.0, 0.38, 1.0)
+		add_child(hill)
+	for p in [[-20.3, 8.0], [-16.5, 4.0], [-5.0, 2.4], [-10.5, 6.2], [-2.6, 11.8]]:
+		place(tree(), Vector3(p[0], y, p[1]), 1.1, 1.6)
+	_scatter(flower, Vector3(-12, y, 9.5), 3.5, 40, 1.4, 2.0)
+	_scatter(mushroom, Vector3(-7, y, 4), 1.3, 5, 1.4, 2.0)
+	# --- Chapter 2, Village (back left): little houses, fences, a windmill
+	for h in [[-16, -4, 0.3], [-13, -2.5, -0.2], [-9.5, -4.5, 0.4], [-15, -8.5, -0.5], [-8, -9, 0.2]]:
+		place(house(), Vector3(h[0], y, h[1]), 1.2, 2.4, h[2])
+	var mill := Node3D.new()
+	mill.add_child(doodle(_cyl(0.6, 0.9, 3.0, 10), "f7d9b0", Vector3(0, 1.5, 0), 0.04))
+	mill.add_child(doodle(_cyl(0.0, 1.0, 0.9, 10), "e88f8f", Vector3(0, 3.4, 0), 0.04))
+	for k in 4:
+		var blade := doodle(_box(0.35, 2.4, 0.08), "fffaf0", Vector3(0, 2.9, 0.75), 0.03, true)
+		blade.rotation.z = k * PI / 2.0 + 0.3
+		blade.position += Vector3(cos(k * PI / 2.0 + 0.3 + PI / 2.0), sin(k * PI / 2.0 + 0.3 + PI / 2.0), 0) * 1.1
+		mill.add_child(blade)
+	place(mill, Vector3(-19, y, -9.5), 1.0, 2.2, 0.3)
+	# --- Chapter 3, Seaside (front right): a painted sea with islets, a lighthouse, bubbles
+	var sea := colored(_cyl(7.5, 7.5, 0.12, 40), "8fd0f5", Vector3(12, y + 0.06, 7.5), 0.04, 0.2)
+	sea.scale = Vector3(1.15, 1.0, 0.75)
+	add_child(sea)
+	for i in [[8, 6, 1.5], [15, 9, 1.8], [12.5, 4.5, 1.0], [17, 5, 1.1]]:
+		var islet := doodle(_sphere(i[2], 16, 8, true), "f6e3b4", Vector3(i[0], y + 0.1, i[1]), 0.04)
+		islet.scale = Vector3(1.0, 0.35, 1.0)
+		add_child(islet)
+	var light := Node3D.new()
+	for k in 4:
+		light.add_child(doodle(_cyl(0.42 - k * 0.05, 0.47 - k * 0.05, 0.75, 12), "e5485e" if k % 2 == 0 else "ffffff",
+			Vector3(0, 0.37 + k * 0.75, 0), 0.03))
+	light.add_child(doodle(_cyl(0.32, 0.32, 0.5, 12), "ffe07a", Vector3(0, 3.25, 0), 0.03))
+	light.add_child(doodle(_cyl(0.0, 0.45, 0.6, 12), "e5485e", Vector3(0, 3.8, 0), 0.03))
+	place(light, Vector3(15, y + 0.4, 9), 1.0, 1.4, 0.0)
+	for b in 14:
+		add_child(colored(_sphere(rng.randf_range(0.18, 0.45)), "dff3ff",
+			Vector3(rng.randf_range(6, 18), y + rng.randf_range(0.6, 3.0), rng.randf_range(3, 12)), 0.02, 0.4))
+	place(tree(), Vector3(8, y + 0.4, 6), 0.8, 1.0)
+	# --- Chapter 4, Snowy Notebook (back right): snowy mounds, pines, ice crystals
+	for h in [[8, -5, 2.6], [15, -3.5, 2.2], [12, -9.5, 3.0], [18, -9, 1.8]]:
+		var mound := doodle(_sphere(h[2], 18, 10, true), "f4f8ff", Vector3(h[0], y, h[1]), 0.05)
+		mound.scale = Vector3(1.0, 0.5, 1.0)
+		add_child(mound)
+	for p in [[6, -2, 1.0], [10, -3, 1.3], [17.5, -5.5, 1.1], [7, -10, 1.2], [15.5, -11, 1.0], [19.5, -2.5, 0.9]]:
+		var pine := Node3D.new()
+		pine.add_child(doodle(_cyl(0.1, 0.14, 0.6, 8), "c99a6a", Vector3(0, 0.3, 0), 0.02))
+		for k in 3:
+			pine.add_child(doodle(_cyl(0.0, 0.9 - k * 0.2, 0.9, 9), "6fae8c", Vector3(0, 0.9 + k * 0.55, 0), 0.03))
+		pine.add_child(doodle(_cyl(0.0, 0.32, 0.35, 9), "ffffff", Vector3(0, 2.35, 0), 0.02))
+		place(pine, Vector3(p[0], y, p[1]), p[2], 1.4)
+	for c in 6:
+		var crystal := colored(_cyl(0.0, 0.35, 1.4, 5), "bfe6ff", Vector3(rng.randf_range(9, 18), y + 0.6, rng.randf_range(-11, -6)), 0.025, 0.35)
+		crystal.rotation = Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3))
+		add_child(crystal)
+	# --- The Eraser's castle, beyond the top edge of the book
+	var castle := Node3D.new()
+	castle.add_child(doodle(_box(5.0, 2.6, 2.6), "f59ab4", Vector3(0, 1.3, 0), 0.06, true))       # an eraser block
+	castle.add_child(doodle(_box(5.1, 0.9, 2.7), "7fb5ec", Vector3(0, 2.4, 0), 0.05, true))       # its paper sleeve
+	for sx in [-2.2, 0.0, 2.2]:
+		castle.add_child(doodle(_cyl(0.35, 0.35, 2.6 if sx == 0.0 else 1.8, 6), "ffd86b", Vector3(sx, 3.2 + (0.4 if sx == 0.0 else 0.0), 0), 0.04))
+		castle.add_child(doodle(_cyl(0.0, 0.35, 0.8, 6), "f3d2a6", Vector3(sx, 4.9 if sx == 0.0 else 4.5, 0), 0.03))
+	place(castle, Vector3(0, -0.3, -17.5), 1.0, 0.0, 0.0)
+	# --- The Ink Bloom: a giant living doodle flower at the heart of the book
+	var bloom := Node3D.new()
+	bloom.add_child(doodle(_cyl(0.18, 0.28, 3.2, 10), "8fc98a", Vector3(0, 1.6, 0), 0.04))
+	for k in 8:
+		var a := k / 8.0 * TAU
+		var petal := doodle(_sphere(0.85, 14, 8), "ff9ab5" if k % 2 == 0 else "b9a2ee", Vector3(cos(a) * 1.05, 3.4, sin(a) * 1.05), 0.04)
+		petal.scale = Vector3(1.0, 0.45, 0.6)
+		petal.rotation.y = -a
+		bloom.add_child(petal)
+	bloom.add_child(doodle(_sphere(0.65), "ffe07a", Vector3(0, 3.55, 0), 0.04))
+	for k in 2:
+		var leaf := doodle(_sphere(0.7, 12, 6), "8fc98a", Vector3((k * 2 - 1) * 0.7, 1.2 + k * 0.5, 0), 0.03)
+		leaf.scale = Vector3(1.0, 0.25, 0.5)
+		leaf.rotation.z = (k * 2 - 1) * -0.5
+		bloom.add_child(leaf)
+	for k in 7:  # sparkles around it
+		var a := k / 7.0 * TAU
+		var st := colored(_star_mesh(0.3, 0.12, 0.05), "ffe07a", Vector3(cos(a) * 2.6, 3.0 + sin(a * 2.0) * 0.8, sin(a) * 2.6), 0.02, 0.3)
+		bloom.add_child(st)
+	place(bloom, Vector3(0, y, 1.5), 1.3, 3.0, 0.0)
+	# --- level stamps joined by dotted ink paths, in play order
+	var nodes := [
+		["1-1", -18, 10.5, "ff9ab5"], ["1-2", -12.5, 12.0, "ff9ab5"], ["1-3", -7.5, 9.0, "ff9ab5"], ["1-E", -9.5, 3.0, "26232b"],
+		["2-1", -17.0, -1.5, "f5c35b"], ["2-2", -11.5, -6.5, "f5c35b"], ["2-3", -6.0, -7.0, "f5c35b"], ["2-E", -12.5, -11.0, "26232b"],
+		["3-1", 5.5, 11.5, "7fb5ec"], ["3-2", 10.5, 11.8, "7fb5ec"], ["3-3", 18.5, 11.0, "7fb5ec"], ["3-E", 18.0, 2.5, "26232b"],
+		["4-1", 5.5, -6.5, "a585e0"], ["4-2", 11.0, -6.8, "a585e0"], ["4-3", 16.0, -12.0, "a585e0"], ["4-E", 6.0, -11.5, "26232b"],
+	]
+	var prev := Vector3.INF
+	for n in nodes:
+		var pos := Vector3(n[1], y, n[2])
+		var stamp := colored(_cyl(0.75, 0.85, 0.3, 24), n[3], pos + Vector3(0, 0.15, 0), 0.04, 0.15)
+		add_child(stamp)
+		var label := Label3D.new()
+		label.text = n[0]
+		label.font = _ui_font()
+		label.font_size = 96
+		label.pixel_size = 0.008
+		label.modulate = Color("1f1d24")
+		label.outline_modulate = Color.WHITE
+		label.outline_size = 18
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.position = pos + Vector3(0, 1.3, 0)
+		add_child(label)
+		if prev != Vector3.INF:
+			var d: float = prev.distance_to(pos)
+			var steps := int(d / 0.7)
+			for k in range(1, steps):
+				var t := float(k) / steps
+				var p: Vector3 = prev.lerp(pos, t) + Vector3(0, 0.05 + sin(t * PI) * 0.0, sin(t * PI * 2.0) * 0.4)
+				add_child(colored(_sphere(0.11, 8, 5), "1f1d24", p, 0.0, 0.0))
+		prev = pos
+	for k in 8:
+		var c := cloud()
+		var side := 1.0 if k % 2 == 0 else -1.0  # off the edges of the book, so they frame it without hiding regions
+		if k < 6:
+			c.position = Vector3(side * rng.randf_range(25, 33), rng.randf_range(6, 9), rng.randf_range(-20, 12))
+		else:
+			c.position = Vector3(rng.randf_range(-18, 18), rng.randf_range(8, 10), rng.randf_range(-26, -20))
+		c.scale = Vector3.ONE * rng.randf_range(1.2, 2.2)
+		add_child(c)
+		clouds.append(c)
+	checkpoint(Vector3(-18, y, 12.6))
+	checkpoints[0].node.visible = false
+	_paint_all(true)
 
 
 func sticker_ids() -> Array:

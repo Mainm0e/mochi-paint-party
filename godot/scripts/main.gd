@@ -28,6 +28,8 @@ var shake := 0.0
 var time := 0.0
 var save := {"look": null, "pages": {}, "stickers": [], "music": 0.8, "sfx": 1.0, "look_speed": 0.5}
 var has_mochi := false
+var environment: Environment
+var cinematic := false          # a script is framing the camera (concept renders)
 var _from_mirror := false       # the creator was opened from the Home Page mirror
 
 var ui: Control
@@ -90,6 +92,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--autotest="):
 			_autotest(a.trim_prefix("--autotest="))
+		if a.begins_with("--worldmap="):
+			_worldmap_shots(a.trim_prefix("--worldmap="))
 
 
 # ================================================================== setup
@@ -137,6 +141,7 @@ func _build_scene() -> void:
 	env.fog_depth_end = 38.0
 	var we := WorldEnvironment.new()
 	we.environment = env
+	environment = env
 	add_child(we)
 	audio = Audio.new()
 	add_child(audio)
@@ -990,6 +995,8 @@ func _eat(delta: float) -> void:
 
 
 func _update_camera(delta: float) -> void:
+	if cinematic:
+		return
 	var p := mochi.global_position
 	var target: Vector3
 	var eye: Vector3
@@ -1021,6 +1028,38 @@ func _update_camera(delta: float) -> void:
 	look_at_now = look_at_now.lerp(target, k)
 	camera.set_meta("look", look_at_now)
 	camera.look_at(look_at_now)
+
+
+# ================================================================== world map concept renders
+## Build the world map diorama and save an overview plus close-ups of each chapter region.
+func _worldmap_shots(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	cinematic = true
+	ui.visible = false
+	environment.fog_depth_begin = 70.0
+	environment.fog_depth_end = 140.0
+	world.load_level("worldmap")
+	mochi.global_position = Vector3(-18, 0.8, 10.5)  # waiting on stamp 1-1
+	mochi.scale = Vector3.ONE * 2.2
+	mochi.rotation.y = 0.5
+	var shots := [
+		["map_overview", Vector3(0, 27, 33), Vector3(0, 0, -1.5), 45.0],
+		["map_meadow", Vector3(-10, 8, 22), Vector3(-12, 0.5, 7.5), 40.0],
+		["map_village", Vector3(-4, 9, 4), Vector3(-13, 0.5, -6), 42.0],
+		["map_seaside", Vector3(13, 8, 22), Vector3(12, 0.8, 7), 40.0],
+		["map_snowy", Vector3(4, 9, 3), Vector3(12, 0.5, -7), 42.0],
+		["map_bloom_castle", Vector3(7, 7, 10), Vector3(-0.5, 2.6, -8), 42.0],
+	]
+	await get_tree().create_timer(1.5).timeout
+	for s in shots:
+		camera.position = s[1]
+		camera.fov = s[3]
+		camera.look_at(s[2])
+		await get_tree().create_timer(0.3).timeout
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(dir.path_join(s[0] + ".png"))
+	print("WORLDMAP DONE")
+	get_tree().quit()
 
 
 # ================================================================== screenshot tour (plays through the slice)

@@ -27,6 +27,7 @@ G="/c/Users/mainm/Godot/Godot_v4.7.2-stable_win64_console.exe"
 "$G" --headless --path godot --import                 # after adding/changing assets
 "$G" --headless --path godot --quit-after 120          # quick script/parse check (look for SCRIPT ERROR)
 "$G" --path godot --resolution 1280x720 -- --autotest=<abs dir>   # scripted playthrough + screenshots, prints AUTOTEST lines
+"$G" --path godot --resolution 1600x900 -- --worldmap=<abs dir>   # world map concept renders (docs/world_concept/)
 
 # Blender 5.2 asset builds
 B="/c/Program Files/Blender Foundation/Blender 5.2/blender.exe"
