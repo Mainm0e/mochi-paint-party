@@ -1,0 +1,899 @@
+<title>Doodle Mochi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Gaegu:wght@400;700&display=swap">
+<style>
+  /* Layout: the 3D sketchbook fills the screen; menus are ink-outlined paper cards floating over it.
+     Deliberately one look (paper + ink) in every theme. */
+  :root {
+    --paper: #f8f6f0;
+    --card: #ffffff;
+    --ink: #1f1d24;
+    --muted: #6b6672;
+    --line: #e7e2d8;
+    --accent: #e3789a;
+    --accent-soft: #fbe3eb;
+    --display: "Mochiy Pop One", "Gaegu", system-ui, sans-serif;
+    --body: "Gaegu", "Comic Sans MS", system-ui, sans-serif;
+    --wobble: 255px 18px 225px 18px / 18px 225px 18px 255px;  /* hand-drawn box corners */
+    color-scheme: light;
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 19px; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px dashed var(--accent); outline-offset: 3px; }
+
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  .screen { position: fixed; inset: 0; pointer-events: none; }
+  .screen > * { pointer-events: auto; }
+  .card {
+    background: var(--card); border: 3px solid var(--ink); border-radius: var(--wobble);
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+  .btn {
+    border: 3px solid var(--ink); border-radius: var(--wobble); background: var(--card); padding: 8px 20px;
+    font-weight: 700; font-size: 21px; box-shadow: 3px 3px 0 var(--ink); transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  .btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.small { font-size: 17px; padding: 4px 12px; box-shadow: 2px 2px 0 var(--ink); }
+
+  .loading { position: fixed; inset: 0; display: grid; place-items: center; font-family: var(--display); font-size: 22px; }
+
+  /* ---------- main menu ---------- */
+  #menu { display: grid; place-items: center; padding-inline: 16px; }
+  @media (min-width: 761px) { #menu { justify-items: start; padding-left: max(6vw, 16px); } }
+  @media (max-width: 760px) { #menu { align-items: end; padding-bottom: 24px; } }
+  .menu-card { width: min(420px, 100%); padding: 26px 26px 22px; display: grid; gap: 14px; justify-items: center; text-align: center; transform: rotate(-1deg); }
+  .logo { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(36px, 8vw, 50px); line-height: 1; letter-spacing: 0.01em; }
+  .logo span { color: var(--accent); }
+  .sub { margin: 0; color: var(--muted); font-size: 21px; }
+  .menu-buttons { display: grid; gap: 10px; width: 100%; }
+  .help { text-align: left; font-size: 18px; line-height: 1.35; margin: 0; padding-left: 20px; }
+  .help kbd { font-family: var(--body); font-weight: 700; border: 2px solid var(--ink); border-radius: 6px; padding: 0 5px; background: var(--paper); }
+
+  /* ---------- creator ---------- */
+  #creator .panel {
+    position: absolute; top: 16px; bottom: 16px; right: max(16px, env(safe-area-inset-right, 0px));
+    width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel-head { padding: 16px 20px 8px; display: grid; gap: 8px; }
+  .panel-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 24px; }
+  .name { display: flex; align-items: center; gap: 8px; }
+  .name label { font-weight: 700; color: var(--muted); }
+  .name input { flex: 1; min-width: 0; border: 2.5px solid var(--ink); border-radius: 10px; padding: 4px 10px; font-family: var(--display); font-size: 17px; background: var(--paper); }
+  .tabs { display: flex; gap: 2px; padding: 0 12px; overflow-x: auto; scrollbar-width: none; border-bottom: 2.5px solid var(--ink); }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { border: 0; background: none; padding: 6px 9px 8px; color: var(--muted); font-weight: 700; font-size: 19px; white-space: nowrap; border-bottom: 4px solid transparent; margin-bottom: -2.5px; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .pane { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 20px; display: grid; gap: 14px; align-content: start; }
+  .group { display: grid; gap: 8px; }
+  .group h3 { margin: 0; font-size: 17px; color: var(--muted); font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+  .opt { border: 2.5px solid var(--line); background: var(--paper); border-radius: 14px; padding: 5px 5px 3px; display: grid; gap: 2px; justify-items: center; font-weight: 700; font-size: 16px; color: var(--muted); }
+  .opt canvas { width: 100%; height: auto; border-radius: 9px; display: block; }
+  .opt[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); box-shadow: 2px 2px 0 var(--accent); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+  .sw { width: 36px; height: 36px; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; border: 2.5px solid var(--ink); background: var(--c); }
+  .sw.dot { border-radius: 50%; }
+  .sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--card), 0 0 0 5.5px var(--accent); }
+  .custom { position: relative; width: 36px; height: 36px; border-radius: 50%; overflow: hidden; border: 2.5px solid var(--ink);
+    background: conic-gradient(#f59ab4, #f2c46a, #a6dc8a, #7fc8f8, #b9a2ee, #f59ab4); }
+  .custom input { position: absolute; inset: -8px; width: 52px; height: 52px; opacity: 0; cursor: pointer; }
+  .panel-foot { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 20px 16px; border-top: 2.5px solid var(--ink); }
+  .panel-foot .grow { flex: 1; }
+
+  /* ---------- HUD ---------- */
+  #hud .top { position: absolute; top: 14px; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; pointer-events: none; }
+  #hud .top > * { pointer-events: auto; }
+  .tag { padding: 6px 14px; display: grid; gap: 4px; }
+  .tag b { font-family: var(--display); font-weight: 400; font-size: 18px; }
+  .drops { display: flex; gap: 5px; align-items: center; font-size: 17px; font-weight: 700; color: var(--muted); }
+  .drop { width: 14px; height: 18px; border: 2px solid var(--ink); border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%; background: var(--card); transform: rotate(180deg); }
+  .drop.got { background: var(--c); }
+  #hud .bottom { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; width: max-content; max-width: calc(100% - 32px); }
+  .emotes { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 6px 8px; }
+  .chip { border: 2px solid var(--ink); background: var(--paper); border-radius: 999px; padding: 1px 10px; font-weight: 700; font-size: 17px; }
+  .chip:hover { background: var(--accent-soft); }
+  .chip kbd { font-family: var(--body); color: var(--muted); font-size: 14px; margin-right: 3px; }
+  .hint { font-size: 16px; color: var(--muted); background: rgb(248 246 240 / 0.85); padding: 1px 10px; border-radius: 999px; }
+  .toast { position: absolute; top: 18%; left: 50%; transform: translateX(-50%) rotate(-2deg); font-family: var(--display); font-size: clamp(22px, 5vw, 30px);
+    background: var(--card); padding: 6px 18px; border: 3px solid var(--ink); border-radius: var(--wobble); box-shadow: 4px 4px 0 var(--ink); white-space: nowrap; }
+
+  /* touch controls */
+  .stick { position: absolute; left: max(22px, env(safe-area-inset-left, 0px)); bottom: 110px; width: 120px; height: 120px; border-radius: 50%;
+    border: 3px dashed var(--ink); background: rgb(255 255 255 / 0.55); touch-action: none; }
+  .knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: var(--accent); border: 3px solid var(--ink); }
+  .jump { position: absolute; right: max(22px, env(safe-area-inset-right, 0px)); bottom: 120px; width: 84px; height: 84px; border-radius: 50%; font-size: 20px; padding: 0; }
+
+  /* ---------- overlays ---------- */
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding-inline: 16px; background: rgb(248 246 240 / 0.55); }
+  .overlay .card { width: min(380px, 100%); padding: 22px; display: grid; gap: 10px; text-align: center; }
+  .overlay h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 28px; }
+  .overlay p { margin: 0; color: var(--muted); }
+
+  @media (max-width: 760px) {
+    #creator .panel { top: auto; height: 52%; left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); width: auto; bottom: 10px; }
+    .emotes .chip kbd { display: none; }
+    #hud .hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+
+<canvas id="view" aria-label="Doodle Mochi game view"></canvas>
+<div class="loading" id="loading">Sharpening pencils…</div>
+
+<section class="screen" id="menu" hidden>
+  <div class="card menu-card">
+    <h1 class="logo">Doodle <span>Mochi</span></h1>
+    <p class="sub">A squishy stroll across the sketchbook</p>
+    <div class="menu-buttons">
+      <button class="btn primary" id="m-play">Play</button>
+      <button class="btn" id="m-make">Make a mochi</button>
+      <button class="btn" id="m-help">How to play</button>
+    </div>
+    <ul class="help" id="help" hidden>
+      <li>The page is only ink. Find the <b>8 paint drops</b> to color it in.</li>
+      <li><kbd>WASD</kbd> or arrows to walk, <kbd>Space</kbd> to hop.</li>
+      <li><kbd>1</kbd>–<kbd>6</kbd> for emotes, drag to look around.</li>
+      <li>On a phone: the joystick walks, the round button hops.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="screen" id="creator" hidden>
+  <div class="card panel">
+    <div class="panel-head">
+      <h2>Make your mochi</h2>
+      <div class="name"><label for="name">Name</label><input id="name" maxlength="16" autocomplete="off" value="Mochi"></div>
+    </div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="pane" id="pane" role="tabpanel"></div>
+    <div class="panel-foot">
+      <button class="btn small" id="c-random">Surprise me</button>
+      <button class="btn small" id="c-back">Back</button>
+      <span class="grow"></span>
+      <button class="btn primary" id="c-go">Let's go!</button>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="hud" hidden>
+  <div class="top">
+    <div class="card tag"><b id="hud-name">Mochi</b><div class="drops" id="drops"></div></div>
+    <button class="btn small" id="h-menu">Menu</button>
+  </div>
+  <div class="stick" id="stick" hidden><div class="knob" id="knob"></div></div>
+  <button class="btn primary jump" id="jump" hidden>Hop</button>
+  <div class="bottom">
+    <div class="card emotes" id="emotes" role="group" aria-label="Emotes"></div>
+    <span class="hint">WASD walk · Space hop · drag to look · click your mochi to squish</span>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+</section>
+
+<div class="overlay" id="pause" hidden>
+  <div class="card">
+    <h2>Paused</h2>
+    <button class="btn primary" id="p-resume">Keep walking</button>
+    <button class="btn" id="p-edit">Change my mochi</button>
+    <button class="btn" id="p-restart">Restart the page</button>
+    <button class="btn" id="p-menu">Main menu</button>
+  </div>
+</div>
+
+<div class="overlay" id="win" hidden>
+  <div class="card">
+    <h2>The page is painted!</h2>
+    <p id="win-text">Every doodle has its color back.</p>
+    <button class="btn primary" id="w-keep">Keep exploring</button>
+    <button class="btn" id="w-menu">Main menu</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+
+const ASSETS = "assets/";
+const TEX = 1024;
+const PAPER = "#f8f6f0", INKC = "#1f1d24";
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const touch = matchMedia("(pointer: coarse)").matches;
+const $ = (id) => document.getElementById(id);
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const show = (id, on = true) => ($(id).hidden = !on);
+
+// ================================================================== mochi look (same layers as Mochi Maker)
+const LAYERS = await fetch(ASSETS + "layers/layers.json").then((r) => r.json());
+const INK = LAYERS.ink;
+const EYE_COLORS = { cocoa: INK, midnight: "#2f3150", berry: "#9b3b5c", ocean: "#2e6ea6", forest: "#3d7a4f", plum: "#6a4a9c" };
+const ACCENTS = { pink: "#f58faa", cherry: "#e0596f", sun: "#f5c35b", mint: "#7fd1b4", sky: "#7fb5ec", grape: "#a585e0" };
+const DEFAULT_LOOK = { name: "Mochi", flavor: LAYERS.flavors.strawberry, topping: "Sprout", eyes: "bean", eyeColor: INK,
+  mouth: "smile", cheeks: "soft", marks: "none", accent: ACCENTS.pink };
+const SAVE_KEY = "doodle-mochi";
+let save = { look: null, painted: [] };
+try { save = { ...save, ...JSON.parse(localStorage.getItem(SAVE_KEY) || "{}") }; } catch {}
+const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} };
+function validLook(o) {
+  const hex = /^#[0-9a-f]{6}$/i;
+  return o && LAYERS.toppings.includes(o.topping) && LAYERS.eyes.includes(o.eyes) && LAYERS.mouths.includes(o.mouth)
+    && LAYERS.cheeks.includes(o.cheeks) && LAYERS.marks.includes(o.marks) && ["flavor", "eyeColor", "accent"].every((k) => hex.test(o[k]));
+}
+let S = validLook(save.look) ? { ...DEFAULT_LOOK, ...save.look } : { ...DEFAULT_LOOK };
+
+const loadImg = (src) => new Promise((res, rej) => {
+  const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(`Could not load ${src}`)); i.src = src;
+});
+const IMG = { eyes: {}, mask: {}, mouths: {}, cheeks: {}, marks: {} };
+await Promise.all([
+  loadImg(ASSETS + "layers/shine.png").then((i) => (IMG.shine = i)),
+  ...LAYERS.eyes.flatMap((n) => [
+    loadImg(`${ASSETS}layers/eyes/${n}.png`).then((i) => (IMG.eyes[n] = i)),
+    loadImg(`${ASSETS}layers/eyes/${n}_mask.png`).then((i) => (IMG.mask[n] = i)),
+  ]),
+  ...LAYERS.mouths.map((n) => loadImg(`${ASSETS}layers/mouths/${n}.png`).then((i) => (IMG.mouths[n] = i))),
+  ...LAYERS.cheeks.filter((n) => n !== "none").map((n) => loadImg(`${ASSETS}layers/cheeks/${n}.png`).then((i) => (IMG.cheeks[n] = i))),
+  ...LAYERS.marks.filter((n) => n !== "none").map((n) => loadImg(`${ASSETS}layers/marks/${n}.png`).then((i) => (IMG.marks[n] = i))),
+]);
+const FULL = [0, 0, TEX, TEX];
+const work = document.createElement("canvas");
+function tint(src, color, crop, w, h) {
+  work.width = w; work.height = h;
+  const c = work.getContext("2d");
+  c.clearRect(0, 0, w, h); c.drawImage(src, ...crop, 0, 0, w, h);
+  c.globalCompositeOperation = "source-in"; c.fillStyle = color; c.fillRect(0, 0, w, h);
+  c.globalCompositeOperation = "source-over";
+  return work;
+}
+function paintFace(ctx, s, crop = FULL, w = TEX, h = TEX, parts = { shine: 1, cheeks: 1, marks: 1, eyes: 1, mouth: 1 }) {
+  const draw = (img) => ctx.drawImage(img, ...crop, 0, 0, w, h);
+  if (parts.shine) draw(IMG.shine);
+  if (parts.cheeks && s.cheeks !== "none") draw(IMG.cheeks[s.cheeks]);
+  if (parts.marks && s.marks !== "none") draw(IMG.marks[s.marks]);
+  if (parts.eyes) {
+    draw(IMG.eyes[s.eyes]);
+    ctx.globalCompositeOperation = "multiply"; ctx.drawImage(tint(IMG.mask[s.eyes], s.eyeColor, crop, w, h), 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+  }
+  if (parts.mouth) draw(IMG.mouths[s.mouth]);
+}
+const faceCanvas = Object.assign(document.createElement("canvas"), { width: TEX, height: TEX });
+const faceTex = new THREE.CanvasTexture(faceCanvas);
+faceTex.flipY = false; faceTex.colorSpace = THREE.SRGBColorSpace; faceTex.anisotropy = 4;
+
+// ================================================================== renderer + shared materials
+const canvas = $("view");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(PAPER);
+scene.fog = new THREE.Fog(PAPER, 15, 34);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 80);
+scene.add(new THREE.AmbientLight(0xffffff, 1.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.35);
+sun.position.set(-0.8, 1.6, 1.5);
+scene.add(sun);
+
+const gradient = new THREE.DataTexture(new Uint8Array([92, 255]), 2, 1, THREE.RedFormat);
+gradient.minFilter = gradient.magFilter = THREE.NearestFilter; gradient.needsUpdate = true;
+function toon(params, rim = 0.1) {
+  const m = new THREE.MeshToonMaterial({ gradientMap: gradient, ...params });
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace("#include <tonemapping_fragment>", `
+      gl_FragColor.rgb += ${rim.toFixed(3)} * smoothstep(0.55, 0.95, 1.0 - saturate(dot(normal, normalize(vViewPosition)))) * gl_FragColor.a;
+      #include <tonemapping_fragment>`);
+  };
+  m.customProgramCacheKey = () => `toon-${rim}`;
+  return m;
+}
+const outlineCache = {};
+function outlineMaterial(thick, color = INK) {  // inverted hull, pushed out along the normal
+  const key = `${thick}-${color}`;
+  if (outlineCache[key]) return outlineCache[key];
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace("#include <begin_vertex>",
+      `vec3 transformed = position + normalize(normal) * ${thick.toFixed(4)};`);
+  };
+  m.customProgramCacheKey = () => `outline-${key}`;
+  return (outlineCache[key] = m);
+}
+const blobCv = Object.assign(document.createElement("canvas"), { width: 128, height: 128 });
+{
+  const c = blobCv.getContext("2d"), g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, "rgba(60,55,70,0.28)"); g.addColorStop(0.6, "rgba(60,55,70,0.1)"); g.addColorStop(1, "rgba(60,55,70,0)");
+  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+}
+const blobMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(blobCv), transparent: true, depthWrite: false });
+function blobShadow(size) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), blobMat);
+  m.rotation.x = -Math.PI / 2; m.position.y = 0.012;
+  return m;
+}
+
+// ================================================================== the sketchbook page
+let seed = 7;
+const rnd = () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const R = 24, PAGE = 62;  // walkable radius, ground size (fog hides the paper's edge)
+
+function paperTexture() {
+  const N = 2048, px = N / PAGE, cv = Object.assign(document.createElement("canvas"), { width: N, height: N });
+  const c = cv.getContext("2d");
+  c.fillStyle = PAPER; c.fillRect(0, 0, N, N);
+  c.strokeStyle = "rgba(110,125,165,0.16)"; c.lineWidth = 1.5;
+  for (let i = 0; i <= N; i += 2.5 * px) { c.beginPath(); c.moveTo(i, 0); c.lineTo(i, N); c.moveTo(0, i); c.lineTo(N, i); c.stroke(); }
+  const P = (x, z) => [N / 2 + x * px, N / 2 + z * px];
+  c.strokeStyle = INKC; c.lineCap = c.lineJoin = "round";
+  // edge of the page: a hand-drawn dashed circle
+  c.lineWidth = 4; c.setLineDash([22, 16]); c.beginPath();
+  for (let a = 0; a <= Math.PI * 2 + 0.01; a += 0.02) { const [x, y] = P(Math.cos(a) * (R + 0.6 + Math.sin(a * 7) * 0.15), Math.sin(a) * (R + 0.6)); a ? c.lineTo(x, y) : c.moveTo(x, y); }
+  c.stroke(); c.setLineDash([]);
+  // a winding dotted path from the start toward the village
+  c.lineWidth = 2.5; c.setLineDash([1, 11]); c.beginPath();
+  for (let t = 0; t <= 1; t += 0.01) { const [x, y] = P(t * 9 + Math.sin(t * 7) * 1.2, -t * 6 + Math.cos(t * 5) * 0.8); t ? c.lineTo(x, y) : c.moveTo(x, y); }
+  c.stroke(); c.setLineDash([]);
+  // scattered ink doodles: grass tufts, spirals, little stars, hearts
+  c.globalAlpha = 0.55;
+  for (let i = 0; i < 420; i++) {
+    const a = rnd() * Math.PI * 2, r = 2 + Math.sqrt(rnd()) * (R + 4), [x0, y0] = P(Math.cos(a) * r, Math.sin(a) * r), kind = rnd();
+    c.save(); c.translate(x0, y0); c.scale(0.5, 0.5);
+    const x = 0, y = 0;
+    c.lineWidth = 4; c.beginPath();
+    if (kind < 0.55) { for (const dx of [-7, 0, 7]) { c.moveTo(x + dx, y); c.quadraticCurveTo(x + dx * 0.6, y - 10, x + dx * 1.3, y - 18 + Math.abs(dx)); } }
+    else if (kind < 0.72) { for (let t = 0; t < 12; t += 0.2) { const rr = t * 1.6; t ? c.lineTo(x + Math.cos(t) * rr, y + Math.sin(t) * rr) : c.moveTo(x, y); } }
+    else if (kind < 0.88) { for (let k = 0; k < 4; k++) { const an = k * Math.PI / 4; c.moveTo(x - Math.cos(an) * 8, y - Math.sin(an) * 8); c.lineTo(x + Math.cos(an) * 8, y + Math.sin(an) * 8); } }
+    else { c.moveTo(x, y + 8); c.bezierCurveTo(x - 14, y - 2, x - 6, y - 14, x, y - 5); c.bezierCurveTo(x + 6, y - 14, x + 14, y - 2, x, y + 8); }
+    c.stroke(); c.restore();
+  }
+  c.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(PAGE, PAGE), new THREE.MeshBasicMaterial({ map: paperTexture() }));
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+
+// doodle props: white paper fill + ink outline; each remembers the colour it gets once painted
+const PAINTABLE = [];
+const WHITE = new THREE.Color("#ffffff");
+function wobble(geo, amp) {
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const n = Math.sin(x * 7.1 + y * 3.3) * Math.cos(z * 6.7 - y * 2.1) + Math.sin(z * 4.3 + x * 5.9) * 0.5;
+    p.setXYZ(i, x + n * amp, y + Math.sin(x * 5 + z * 5) * amp * 0.6, z + n * amp * 0.8);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+function doodle(geo, paint, { ink = 0.03, amp = 0.025 } = {}) {
+  wobble(geo, amp);
+  const mesh = new THREE.Mesh(geo, toon({ color: 0xffffff }, 0));
+  mesh.userData = { paint: new THREE.Color(paint), t: 0, painting: false };
+  const hullGeo = mergeVertices(geo.clone().deleteAttribute("normal").deleteAttribute("uv"));
+  hullGeo.computeVertexNormals();
+  mesh.add(new THREE.Mesh(hullGeo, outlineMaterial(ink)));
+  PAINTABLE.push(mesh);
+  return mesh;
+}
+const OBSTACLES = [];
+function place(group, x, z, { r = 0, rotY = rnd() * Math.PI * 2, scale = 1, shadow = 0 } = {}) {
+  group.position.set(x, 0, z); group.rotation.y = rotY; group.scale.setScalar(scale);
+  if (shadow) { const s = blobShadow(shadow * scale); s.position.set(x, 0.012, z); scene.add(s); }
+  if (r) OBSTACLES.push({ x, z, r: r * scale });
+  scene.add(group);
+  return group;
+}
+const G = (...kids) => { const g = new THREE.Group(); kids.forEach((k) => g.add(k)); return g; };
+const at = (m, x, y, z) => (m.position.set(x, y, z), m);
+const pick = (o) => { const v = Array.isArray(o) ? o : Object.values(o); return v[Math.floor(rnd() * v.length)]; };
+
+function tree() {
+  const greens = ["#a8d8a0", "#9fd0b4", "#c3e2a0", "#b5dc96"];
+  const g = G(at(doodle(new THREE.CylinderGeometry(0.09, 0.14, 0.95, 8), "#d9b38c", { ink: 0.025 }), 0, 0.47, 0));
+  const crown = pick(greens);
+  for (const [r, x, y, z] of [[0.58, 0, 1.35, 0], [0.42, 0.34, 1.05, 0.12], [0.4, -0.3, 1.12, -0.08], [0.36, 0.05, 1.7, -0.05]])
+    g.add(at(doodle(new THREE.SphereGeometry(r, 14, 10), crown, { ink: 0.032 }), x, y, z));
+  return g;
+}
+function house() {
+  const walls = pick(["#f7d9b0", "#cfe3f7", "#f7cfe0", "#e2f0c8"]), roof = pick(["#e88f8f", "#8fb5e8", "#b79be8", "#f0b46a"]);
+  const roofGeo = new THREE.CylinderGeometry(0, 1.25, 0.85, 4, 1); roofGeo.rotateY(Math.PI / 4);
+  return G(at(doodle(new THREE.BoxGeometry(1.6, 1.1, 1.3), walls, { amp: 0.02 }), 0, 0.55, 0),
+    at(doodle(roofGeo, roof, { amp: 0.02 }), 0, 1.52, 0),
+    at(doodle(new THREE.BoxGeometry(0.36, 0.62, 0.05), "#c99a6a", { ink: 0.018, amp: 0.008 }), 0.1, 0.31, 0.66),
+    at(doodle(new THREE.BoxGeometry(0.3, 0.3, 0.05), "#bfe6ff", { ink: 0.018, amp: 0.006 }), -0.45, 0.68, 0.66),
+    at(doodle(new THREE.BoxGeometry(0.3, 0.3, 0.05), "#bfe6ff", { ink: 0.018, amp: 0.006 }), 0.55, 0.72, 0.66),
+    at(doodle(new THREE.BoxGeometry(0.2, 0.45, 0.2), "#d9a0a0", { ink: 0.02, amp: 0.01 }), 0.45, 1.75, -0.2));
+}
+function fence(len) {
+  const g = new THREE.Group();
+  for (let x = -len / 2; x <= len / 2 + 0.01; x += 0.55) g.add(at(doodle(new THREE.BoxGeometry(0.09, 0.5, 0.09), "#e6c79c", { ink: 0.018, amp: 0.012 }), x, 0.25, 0));
+  for (const y of [0.22, 0.38]) g.add(at(doodle(new THREE.BoxGeometry(len, 0.06, 0.05), "#e6c79c", { ink: 0.016, amp: 0.012 }), 0, y, 0));
+  return g;
+}
+function rock() {
+  const geo = new THREE.DodecahedronGeometry(0.4, 1); geo.scale(1.25, 0.7, 1);
+  return G(at(doodle(geo, pick(["#cfd3e0", "#d8cfe0", "#d6dccf"]), { amp: 0.05 }), 0, 0.2, 0));
+}
+function mushroom() {
+  const capGeo = new THREE.SphereGeometry(0.28, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  return G(at(doodle(new THREE.CylinderGeometry(0.08, 0.11, 0.36, 10), "#fff3e0", { ink: 0.02 }), 0, 0.18, 0),
+    at(doodle(capGeo, pick(["#f2828f", "#f5a35b", "#b79be8"]), { ink: 0.025 }), 0, 0.34, 0));
+}
+function flower() {
+  const head = pick(["#ff9ab5", "#ffd86b", "#b9a2ee", "#8fd0f5", "#ffb38a"]);
+  const g = G(at(doodle(new THREE.CylinderGeometry(0.014, 0.018, 0.32, 6), "#8fc98a", { ink: 0.012, amp: 0.004 }), 0, 0.16, 0));
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2;
+    g.add(at(doodle(new THREE.SphereGeometry(0.055, 8, 6), head, { ink: 0.012, amp: 0.004 }), Math.cos(a) * 0.06, 0.34, Math.sin(a) * 0.06));
+  }
+  g.add(at(doodle(new THREE.SphereGeometry(0.04, 8, 6), "#ffe9a8", { ink: 0.012, amp: 0.002 }), 0, 0.36, 0));
+  return g;
+}
+function pencil() {
+  const body = new THREE.CylinderGeometry(0.3, 0.3, 3.6, 6); body.rotateZ(Math.PI / 2);
+  const tip = new THREE.ConeGeometry(0.3, 0.75, 6); tip.rotateZ(-Math.PI / 2);
+  const lead = new THREE.ConeGeometry(0.1, 0.25, 6); lead.rotateZ(-Math.PI / 2);
+  const band = new THREE.CylinderGeometry(0.31, 0.31, 0.25, 12); band.rotateZ(Math.PI / 2);
+  const eraser = new THREE.CylinderGeometry(0.29, 0.29, 0.4, 12); eraser.rotateZ(Math.PI / 2);
+  return G(at(doodle(body, "#ffd86b", { amp: 0.01 }), 0, 0.3, 0), at(doodle(tip, "#f3d2a6", { amp: 0.008 }), 2.17, 0.3, 0),
+    at(doodle(lead, "#5a5560", { ink: 0.015, amp: 0.004 }), 2.47, 0.3, 0), at(doodle(band, "#c9c9d2", { amp: 0.005 }), -1.92, 0.3, 0),
+    at(doodle(eraser, "#f59ab4", { amp: 0.01 }), -2.24, 0.3, 0));
+}
+function cloud() {
+  const g = new THREE.Group();
+  for (const [r, x, y] of [[0.7, 0, 0], [0.55, 0.75, -0.1], [0.5, -0.7, -0.12], [0.45, 0.3, 0.38]])
+    g.add(at(doodle(new THREE.SphereGeometry(r, 14, 10), "#dcebff", { ink: 0.04, amp: 0.03 }), x, y, 0));
+  return g;
+}
+
+// --- layout: a village, a forest, a flower meadow, a rock garden and a giant pencil around the start
+place(pencil(), -3.6, -3.4, { rotY: 0.5, shadow: 0 });
+for (const t of [-1.5, -0.6, 0.3, 1.2, 2.1]) OBSTACLES.push({ x: -3.6 + Math.cos(0.5) * t, z: -3.4 - Math.sin(0.5) * t, r: 0.45 });
+for (const [x, z, ry] of [[8, -7, 0.3], [11, -4, -0.6], [6.5, -10.5, 0.9]]) place(house(), x, z, { r: 1.1, rotY: ry, shadow: 2.4 });
+place(fence(4), 9.5, -1.5, { rotY: -0.4 });
+for (let i = 0; i < 8; i++) OBSTACLES.push({ x: 9.5 + Math.cos(-0.4) * (i * 0.55 - 2), z: -1.5 - Math.sin(-0.4) * (i * 0.55 - 2), r: 0.22 });
+for (let i = 0; i < 14; i++) {
+  const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 5;
+  place(tree(), -10 + Math.cos(a) * r, -7 + Math.sin(a) * r, { r: 0.25, scale: 0.85 + rnd() * 0.5, shadow: 1.8 });
+}
+for (let i = 0; i < 6; i++) place(mushroom(), -9 + (rnd() - 0.5) * 7, -6 + (rnd() - 0.5) * 7, { scale: 0.8 + rnd() * 0.7, shadow: 0.7 });
+for (let i = 0; i < 70; i++) {
+  const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 5;
+  place(flower(), -6 + Math.cos(a) * r, 8 + Math.sin(a) * r, { scale: 0.9 + rnd() * 0.6 });
+}
+for (let i = 0; i < 9; i++) {
+  const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 4;
+  place(rock(), 10 + Math.cos(a) * r, 8 + Math.sin(a) * r, { r: 0.42, scale: 0.7 + rnd() * 0.9, shadow: 1.2 });
+}
+for (let i = 0; i < 16; i++) {  // a loose ring of trees near the edge of the page
+  const a = (i / 16) * Math.PI * 2 + rnd() * 0.2, r = R - 2.5 + rnd() * 2;
+  place(tree(), Math.cos(a) * r, Math.sin(a) * r, { r: 0.25, scale: 1 + rnd() * 0.6, shadow: 1.8 });
+}
+const CLOUDS = [];
+for (let i = 0; i < 9; i++) {
+  const c = cloud(), a = rnd() * Math.PI * 2, r = 4 + rnd() * 16;
+  c.position.set(Math.cos(a) * r, 4.2 + rnd() * 1.5, Math.sin(a) * r); c.scale.setScalar(0.8 + rnd() * 0.8);
+  scene.add(c); CLOUDS.push(c);
+}
+
+// --- paint drops: collect one to colour every doodle around it
+const DROP_SPOTS = [[-3.8, -1.3, "#ffd86b"], [8.6, -4.6, "#e88f8f"], [7.2, -9, "#8fb5e8"], [-9.5, -4.2, "#a8d8a0"],
+  [-12.5, -9.5, "#9fd0b4"], [-6, 6, "#ff9ab5"], [-3.4, 10.8, "#b9a2ee"], [10.5, 7.5, "#8fd0f5"]];
+const dropGeo = new THREE.LatheGeometry(Array.from({ length: 17 }, (_, i) => {
+  const a = (i / 16) * Math.PI;
+  return new THREE.Vector2(0.17 * Math.sin(a) * Math.pow(Math.sin(a / 2), 0.8) + 0.0001, 0.22 * Math.cos(a));
+}), 18);
+const DROPS = DROP_SPOTS.map(([x, z, color], i) => {
+  const m = new THREE.Mesh(dropGeo, toon({ color }, 0.15));
+  const hull = mergeVertices(dropGeo.clone().deleteAttribute("normal").deleteAttribute("uv")); hull.computeVertexNormals();
+  m.add(new THREE.Mesh(hull, outlineMaterial(0.022)));
+  m.position.set(x, 0.55, z);
+  const sh = blobShadow(0.6); sh.position.set(x, 0.013, z);
+  scene.add(m, sh);
+  return { i, x, z, color, mesh: m, shadow: sh, got: false };
+});
+const RINGS = [];
+function splash(x, z, color) {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.02, z);
+  scene.add(ring); RINGS.push({ ring, t: 0 });
+}
+function paintAround(x, z, radius, instant = false) {
+  for (const m of PAINTABLE) {
+    if (m.userData.painting) continue;
+    const p = m.getWorldPosition(new THREE.Vector3());
+    if (Math.hypot(p.x - x, p.z - z) < radius) {
+      m.userData.painting = true;
+      m.userData.t = instant ? 1 : -Math.hypot(p.x - x, p.z - z) / 10;  // ripples outward from the drop
+      if (instant) m.material.color.copy(m.userData.paint);
+    }
+  }
+}
+
+// ================================================================== the player mochi
+const MATS = {}, TOPS = {};
+const player = new THREE.Group();   // position + facing
+const bob = new THREE.Group();      // hop / squash
+player.add(bob, blobShadow(0.95));
+scene.add(player);
+const gltf = await new GLTFLoader().loadAsync(ASSETS + "mochi.gltf.json");
+const model = gltf.scene;
+bob.add(model);
+const meshes = [];
+model.traverse((o) => {
+  const top = o.name.replace("Mochi_Top_", "");
+  if (o.name.startsWith("Mochi_Top_") && LAYERS.toppings.includes(top)) TOPS[top] = o;
+  if (o.isMesh) meshes.push(o);
+});
+const decal = (map) => toon({ map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }, 0);
+for (const o of meshes) {
+  const key = o.material.name;
+  if (!MATS[key]) {
+    if (key === "MochiFace") MATS[key] = decal(faceTex);
+    else if (key.startsWith("MochiEmote_")) MATS[key] = decal(o.material.map);
+    else if (key === "Outline") MATS[key] = new THREE.MeshBasicMaterial({ color: INK });
+    else MATS[key] = toon({ color: o.material.color.clone() }, key === "MochiBody" ? 0.1 : 0.06);
+  }
+  o.material = MATS[key];
+  o.frustumCulled = false;
+  if (key !== "MochiFace" && !/^Mochi_(FX|Emote)_/.test(o.name) && !/^Mochi_(FX|Emote)_/.test(o.parent?.name ?? "")) {
+    const hull = o.clone();
+    hull.material = outlineMaterial(o.name.startsWith("Mochi_Body") ? 0.008 : 0.0035);
+    hull.position.set(0, 0, 0); hull.rotation.set(0, 0, 0); hull.scale.set(1, 1, 1);
+    hull.frustumCulled = false;
+    o.add(hull);
+  }
+}
+const mixer = new THREE.AnimationMixer(model);
+const idle = mixer.clipAction(gltf.animations.find((a) => a.name === "Idle")); idle.play();
+const ACT = {};
+for (const a of gltf.animations.filter((a) => a.name !== "Idle")) {
+  ACT[a.name] = mixer.clipAction(a); ACT[a.name].setLoop(THREE.LoopOnce); ACT[a.name].clampWhenFinished = true;
+}
+mixer.addEventListener("finished", (e) => { if (e.action !== idle) { idle.reset().fadeIn(0.25).play(); e.action.fadeOut(0.25); } });
+function emote(n) {
+  if (!ACT[n]) return;
+  for (const a of Object.values(ACT)) if (a !== ACT[n]) a.stop();
+  ACT[n].reset().fadeIn(0.12).play(); idle.fadeOut(0.12);
+}
+function applyLook() {
+  for (const [n, node] of Object.entries(TOPS)) node.visible = n === S.topping;
+  MATS.MochiBody.color.set(S.flavor);
+  MATS.Accent?.color.set(S.accent);
+  const fc = faceCanvas.getContext("2d");
+  fc.clearRect(0, 0, TEX, TEX); paintFace(fc, S);
+  faceTex.needsUpdate = true;
+  $("hud-name").textContent = S.name || "Mochi";
+  $("name").value = S.name;
+}
+
+// ================================================================== input
+const keys = new Set();
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  keys.add(e.code);
+  if (mode === "play") {
+    if (e.code === "Space") { jump(); e.preventDefault(); }
+    const n = Number(e.key);
+    if (n >= 1 && n <= EMOTES.length) emote(EMOTES[n - 1]);
+    if (e.code === "Escape") pause(true);
+  } else if (e.code === "Escape" && !$("pause").hidden) pause(false);
+});
+addEventListener("keyup", (e) => keys.delete(e.code));
+addEventListener("blur", () => keys.clear());
+
+let yaw = 0, camDist = 4.2, drag = null, squish = -1;
+canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }; });
+addEventListener("pointermove", (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx);
+  if (mode === "play" || mode === "create") yaw -= dx * 0.008;
+});
+addEventListener("pointerup", (e) => {
+  if (drag && e.pointerId === drag.id && drag.moved < 6) {  // a tap: squish the mochi if it was hit
+    const r = canvas.getBoundingClientRect(), ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+    if (ray.intersectObject(model, true).length) squish = 0;
+  }
+  drag = null;
+});
+canvas.addEventListener("wheel", (e) => { if (mode === "play") camDist = THREE.MathUtils.clamp(camDist + e.deltaY * 0.003, 2, 7); }, { passive: true });
+
+// touch joystick + hop button
+const stickVec = new THREE.Vector2();
+{
+  const stick = $("stick"), knob = $("knob");
+  let id = null;
+  const move = (e) => {
+    const r = stick.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const v = new THREE.Vector2(e.clientX - cx, e.clientY - cy), max = r.width / 2 - 10;
+    if (v.length() > max) v.setLength(max);
+    knob.style.transform = `translate(${v.x}px, ${v.y}px)`;
+    stickVec.set(v.x / max, v.y / max);
+  };
+  stick.addEventListener("pointerdown", (e) => { id = e.pointerId; stick.setPointerCapture(id); move(e); e.stopPropagation(); });
+  stick.addEventListener("pointermove", (e) => { if (e.pointerId === id) move(e); });
+  const end = (e) => { if (e.pointerId === id) { id = null; stickVec.set(0, 0); knob.style.transform = ""; } };
+  stick.addEventListener("pointerup", end); stick.addEventListener("pointercancel", end);
+  $("jump").addEventListener("pointerdown", (e) => { e.stopPropagation(); jump(); });
+}
+
+// ================================================================== movement
+const vel = new THREE.Vector3();
+let vy = 0, hopY = 0, phase = 0, land = -1;
+const SPEED = 2.6, GRAVITY = -11;
+function jump() { if (hopY <= 0.0001 && mode === "play") { vy = 3.6; } }
+function stepPlayer(dt, active) {
+  const input = new THREE.Vector2();
+  if (active) input.set(
+    (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0),
+    (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0));
+  if (active) input.add(stickVec);
+  if (input.length() > 1) input.normalize();
+  // screen-relative: forward is away from the camera
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  const want = new THREE.Vector3(rx * input.x - fx * input.y, 0, rz * input.x - fz * input.y).multiplyScalar(SPEED);
+  vel.lerp(want, 1 - Math.exp(-dt * 10));
+  player.position.addScaledVector(vel, dt);
+  // collide with doodles and stay on the page
+  for (const o of OBSTACLES) {
+    const dx = player.position.x - o.x, dz = player.position.z - o.z, d = Math.hypot(dx, dz), min = o.r + 0.3;
+    if (d < min && d > 1e-4) { player.position.x = o.x + (dx / d) * min; player.position.z = o.z + (dz / d) * min; }
+  }
+  const d = Math.hypot(player.position.x, player.position.z);
+  if (d > R) player.position.multiplyScalar(R / d);
+  const speed = Math.hypot(vel.x, vel.z);
+  if (speed > 0.15) {
+    const target = Math.atan2(vel.x, vel.z);
+    let diff = target - player.rotation.y;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    player.rotation.y += diff * (1 - Math.exp(-dt * 12));
+  }
+  // hop-walk + jump physics
+  if (hopY > 0 || vy > 0) {
+    vy += GRAVITY * dt; hopY += vy * dt;
+    if (hopY <= 0) { hopY = 0; vy = 0; land = 0; }
+  }
+  phase += dt * 11 * Math.min(1, speed / SPEED);
+  const walk = Math.min(1, speed / SPEED);
+  const stepY = hopY > 0 ? 0 : Math.abs(Math.sin(phase)) * 0.05 * walk;
+  let sy = 1 - 0.07 * walk * Math.cos(phase * 2);
+  if (hopY > 0) sy = 1 + THREE.MathUtils.clamp(vy * 0.04, -0.12, 0.14);
+  if (land >= 0) { land += dt; sy *= 1 - 0.2 * Math.exp(-land * 7) * Math.cos(land * 18); if (land > 0.8) land = -1; }
+  if (squish >= 0) { squish += dt; sy *= 1 - (reduceMotion ? 0.06 : 0.18) * Math.exp(-squish * 4.5) * Math.cos(squish * 16); if (squish > 1.6) squish = -1; }
+  bob.position.y = hopY + stepY;
+  bob.scale.set(1 / Math.sqrt(sy), sy, 1 / Math.sqrt(sy));
+  player.children[1].scale.setScalar(1 - Math.min(0.5, hopY * 0.6));  // shadow shrinks while airborne
+  // pick up paint drops
+  for (const dr of DROPS) {
+    if (!active || dr.got || Math.hypot(player.position.x - dr.x, player.position.z - dr.z) > 0.7 || hopY > 0.6) continue;
+    collect(dr);
+  }
+}
+function collect(dr, silent = false) {
+  dr.got = true; dr.mesh.visible = dr.shadow.visible = false;
+  paintAround(dr.x, dr.z, 8, silent);
+  if (silent) return;
+  splash(dr.x, dr.z, dr.color);
+  if (!save.painted.includes(dr.i)) save.painted.push(dr.i);
+  store(); renderDrops();
+  const left = DROPS.filter((d) => !d.got).length;
+  if (left === 0) {
+    paintAround(0, 0, 100);
+    emote("Happy");
+    setTimeout(() => { if (mode === "play") { show("win"); $("w-keep").focus(); } }, 1600);
+  } else {
+    emote(pick(["Happy", "Love", "Surprised"]));
+    toast(left === 1 ? "One drop left!" : `${left} drops left`);
+  }
+}
+let toastTimer;
+function toast(t) { $("toast").textContent = t; show("toast"); clearTimeout(toastTimer); toastTimer = setTimeout(() => show("toast", false), 1600); }
+function renderDrops() {
+  $("drops").replaceChildren(...DROPS.map((d) => {
+    const e = document.createElement("span"); e.className = "drop" + (d.got ? " got" : ""); e.style.setProperty("--c", d.color); return e;
+  }), Object.assign(document.createElement("span"), { textContent: `${DROPS.filter((d) => d.got).length}/${DROPS.length}` }));
+}
+
+// ================================================================== screens
+let mode = "menu";  // menu | create | play | paused
+const EMOTES = ["Happy", "Love", "Angry", "Sad", "Surprised", "Sleepy"].filter((n) => ACT[n]);
+$("emotes").replaceChildren(...EMOTES.map((n, i) => {
+  const b = Object.assign(document.createElement("button"), { className: "chip", type: "button" });
+  b.innerHTML = `<kbd>${i + 1}</kbd>${n}`;
+  b.onclick = () => emote(n);
+  return b;
+}));
+function setMode(m) {
+  mode = m;
+  show("menu", m === "menu"); show("creator", m === "create"); show("hud", m === "play" || m === "paused");
+  show("pause", m === "paused");
+  show("stick", touch && m === "play"); show("jump", touch && m === "play");
+  if (m === "menu") { $("m-play").textContent = save.look ? `Play as ${S.name || "Mochi"}` : "Play"; $("m-make").textContent = save.look ? "Change my mochi" : "Make a mochi"; }
+  if (m === "create") { yaw = player.rotation.y; renderTabs(); renderPane(); }  // camera in front of the face
+  if (m === "play") { renderDrops(); canvas.focus?.(); }
+  keys.clear(); stickVec.set(0, 0);
+}
+function pause(on) { if (on && mode === "play") setMode("paused"); else if (!on && mode === "paused") setMode("play"); }
+$("m-play").onclick = () => (save.look ? setMode("play") : setMode("create"));
+$("m-make").onclick = () => setMode("create");
+$("m-help").onclick = () => show("help", $("help").hidden);
+$("c-go").onclick = () => { save.look = S; store(); setMode("play"); toast(`Go, ${S.name || "Mochi"}!`); emote("Happy"); };
+$("c-back").onclick = () => setMode("menu");
+$("c-random").onclick = () => {
+  setLook({ flavor: pick(LAYERS.flavors), topping: pick(LAYERS.toppings), eyes: pick(LAYERS.eyes), eyeColor: pick(EYE_COLORS),
+    mouth: pick(LAYERS.mouths), cheeks: pick(LAYERS.cheeks), marks: pick(LAYERS.marks), accent: pick(ACCENTS) });
+  emote("Bounce");
+};
+$("name").oninput = (e) => { S.name = e.target.value; $("hud-name").textContent = S.name || "Mochi"; if (save.look) { save.look = S; store(); } };
+$("h-menu").onclick = () => pause(true);
+$("p-resume").onclick = () => pause(false);
+$("p-edit").onclick = () => setMode("create");
+$("p-menu").onclick = () => setMode("menu");
+$("p-restart").onclick = () => {
+  save.painted = []; store();
+  for (const m of PAINTABLE) { m.userData.painting = false; m.userData.t = 0; m.material.color.copy(WHITE); }
+  for (const d of DROPS) { d.got = false; d.mesh.visible = d.shadow.visible = true; }
+  player.position.set(0, 0, 0); vel.set(0, 0, 0);
+  setMode("play"); toast("A fresh page");
+};
+$("w-keep").onclick = () => show("win", false);
+$("w-menu").onclick = () => { show("win", false); setMode("menu"); };
+
+// ---------------- creator panel
+const TABS = [["flavor", "Flavor"], ["topping", "Topping"], ["eyes", "Eyes"], ["mouth", "Mouth"], ["cheeks", "Cheeks"], ["mood", "Mood"]];
+let tab = "flavor";
+const CROPS = { eyes: [272, 527, 480, 240], mouth: [432, 721, 160, 80], cheeks: [200, 570, 624, 312], marks: [112, 440, 800, 400] };
+function faceTile(kind, s) {
+  const cv = Object.assign(document.createElement("canvas"), { width: 200, height: 100 });
+  const c = cv.getContext("2d");
+  c.fillStyle = s.flavor; c.fillRect(0, 0, 200, 100);
+  if (kind !== "none") paintFace(c, s, CROPS[kind], 200, 100, { [kind]: 1 });
+  return cv;
+}
+const thumbCam = new THREE.PerspectiveCamera(30, 1, 0.05, 10);
+function toppingTile(name) {
+  const px = 160, pr = renderer.getPixelRatio(), size = renderer.getSize(new THREE.Vector2());
+  const p = player.position, f = player.rotation.y;
+  thumbCam.position.set(p.x + Math.sin(f + 0.4) * 0.85, 0.66, p.z + Math.cos(f + 0.4) * 0.85); thumbCam.lookAt(p.x, 0.46, p.z);
+  for (const [n, node] of Object.entries(TOPS)) node.visible = n === name;
+  renderer.setScissorTest(true);
+  renderer.setViewport(0, 0, px / pr, px / pr); renderer.setScissor(0, 0, px / pr, px / pr);
+  renderer.render(scene, thumbCam);
+  const cv = Object.assign(document.createElement("canvas"), { width: px, height: px });
+  cv.getContext("2d").drawImage(renderer.domElement, 0, renderer.domElement.height - px, px, px, 0, 0, px, px);
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, size.x, size.y);
+  for (const [n, node] of Object.entries(TOPS)) node.visible = n === S.topping;
+  return cv;
+}
+function el(tag, props = {}, kids = []) { const e = Object.assign(document.createElement(tag), props); for (const k of [].concat(kids)) e.append(k); return e; }
+function optionGrid(title, items, key, tile) {
+  return el("div", { className: "group" }, [el("h3", { textContent: title }), el("div", { className: "grid" }, items.map((v) => {
+    const b = el("button", { className: "opt", type: "button" }, [tile(v), cap(v)]);
+    b.setAttribute("aria-pressed", String(S[key] === v));
+    b.onclick = () => setLook({ [key]: v });
+    return b;
+  }))]);
+}
+function swatches(title, palette, key, dot = false) {
+  const row = el("div", { className: "swatches" });
+  for (const [n, c] of Object.entries(palette)) {
+    const b = el("button", { className: "sw" + (dot ? " dot" : ""), type: "button", title: cap(n) });
+    b.style.setProperty("--c", c); b.setAttribute("aria-label", cap(n));
+    b.setAttribute("aria-pressed", String(S[key].toLowerCase() === c.toLowerCase()));
+    b.onclick = () => setLook({ [key]: c });
+    row.append(b);
+  }
+  const pk = el("input", { type: "color", value: S[key], id: `pick-${key}` });
+  pk.setAttribute("aria-label", `Custom ${title.toLowerCase()}`);
+  pk.oninput = () => setLook({ [key]: pk.value }, false);
+  row.append(el("label", { className: "custom", title: "Custom colour" }, [pk]));
+  return el("div", { className: "group" }, [el("h3", { textContent: title }), row]);
+}
+function renderTabs() {
+  $("tabs").replaceChildren(...TABS.map(([id, label]) => {
+    const b = el("button", { type: "button", role: "tab", textContent: label, id: `tab-${id}` });
+    b.setAttribute("aria-selected", String(id === tab));
+    b.onclick = () => { tab = id; renderTabs(); renderPane(); };
+    return b;
+  }));
+}
+function renderPane() {
+  const s = S;
+  const parts = {
+    flavor: () => [swatches("Flavor", LAYERS.flavors, "flavor")],
+    topping: () => [optionGrid("Topping", LAYERS.toppings, "topping", toppingTile), swatches("Bow colour", ACCENTS, "accent", true)],
+    eyes: () => [optionGrid("Eyes", LAYERS.eyes, "eyes", (v) => faceTile("eyes", { ...s, eyes: v })), swatches("Eye colour", EYE_COLORS, "eyeColor", true)],
+    mouth: () => [optionGrid("Mouth", LAYERS.mouths, "mouth", (v) => faceTile("mouth", { ...s, mouth: v }))],
+    cheeks: () => [optionGrid("Cheeks", LAYERS.cheeks, "cheeks", (v) => faceTile(v === "none" ? "none" : "cheeks", { ...s, cheeks: v }))],
+    mood: () => [optionGrid("Mood marks", LAYERS.marks, "marks", (v) => faceTile(v === "none" ? "none" : "marks", { ...s, marks: v }))],
+  };
+  $("pane").replaceChildren(...parts[tab]());
+  $("pane").setAttribute("aria-labelledby", `tab-${tab}`);
+}
+function setLook(patch, rerender = true) {
+  S = { ...S, ...patch }; applyLook();
+  if (save.look) { save.look = S; store(); }  // keep an existing mochi's edits; a new one saves on "Let's go!"
+  if (rerender) renderPane();
+}
+
+// ================================================================== camera + loop
+const camPos = new THREE.Vector3(4, 3, 6), camLook = new THREE.Vector3();
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize);
+resize();
+const clock = new THREE.Clock();
+let time = 0;
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+  mixer.update(dt);
+  stepPlayer(dt, mode === "play");  // outside play it only settles motion and plays squishes
+  // camera framing per screen
+  const p = player.position;
+  let target, eye;
+  if (mode === "menu") {
+    const a = time * 0.12, side = innerWidth > 760 ? -0.9 : 0;  // wide screens: mochi sits right of the menu card
+    const right = new THREE.Vector3(Math.cos(a), 0, -Math.sin(a)).multiplyScalar(side);
+    target = new THREE.Vector3(p.x, innerWidth > 760 ? 0.5 : 0.95, p.z).add(right);
+    eye = new THREE.Vector3(p.x + Math.sin(a) * 3.6, 1.6, p.z + Math.cos(a) * 3.6).add(right);
+  } else if (mode === "create") {
+    const wide = innerWidth > 760, d = 1.85;
+    target = new THREE.Vector3(p.x, wide ? 0.32 : 0.06, p.z);
+    eye = new THREE.Vector3(p.x + Math.sin(yaw) * d, wide ? 0.75 : 0.62, p.z + Math.cos(yaw) * d);
+    if (wide) {  // keep the mochi left of the panel
+      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)).multiplyScalar(0.42);
+      target.add(right); eye.add(right);
+    }
+  } else {
+    target = new THREE.Vector3(p.x, 0.35 + hopY * 0.4, p.z);
+    eye = new THREE.Vector3(p.x + Math.sin(yaw) * camDist, 0.35 + camDist * 0.58, p.z + Math.cos(yaw) * camDist);
+  }
+  const k = 1 - Math.exp(-dt * (mode === "play" ? 6 : 3));
+  camPos.lerp(eye, k); camLook.lerp(target, k);
+  camera.position.copy(camPos); camera.lookAt(camLook);
+  // world motion
+  for (const d of DROPS) if (!d.got) { d.mesh.position.y = 0.55 + Math.sin(time * 2.4 + d.i) * 0.08; d.mesh.rotation.y = time * 1.5 + d.i; }
+  for (const c of CLOUDS) { c.position.x += dt * 0.25; if (c.position.x > R + 6) c.position.x = -R - 6; }
+  for (const m of PAINTABLE) {
+    const u = m.userData;
+    if (!u.painting || u.t >= 1) continue;
+    u.t = Math.min(1, u.t + dt * 1.6);
+    if (u.t > 0) m.material.color.copy(WHITE).lerp(u.paint, u.t * u.t * (3 - 2 * u.t));
+  }
+  for (let i = RINGS.length - 1; i >= 0; i--) {
+    const r = RINGS[i]; r.t += dt;
+    r.ring.scale.setScalar(1 + r.t * 9); r.ring.material.opacity = Math.max(0, 1 - r.t / 1.1);
+    if (r.t > 1.1) { scene.remove(r.ring); RINGS.splice(i, 1); }
+  }
+  renderer.render(scene, camera);
+});
+
+// ================================================================== boot
+for (const d of DROPS) if (save.painted.includes(d.i)) collect(d, true);
+applyLook();
+$("loading").remove();
+setMode("menu");
+</script>

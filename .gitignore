@@ -1,0 +1,20 @@
+# Godot: the import cache is rebuilt from the assets (keep the *.import and *.uid files)
+godot/.godot/
+godot/export_presets.cfg
+godot/build/
+
+# Blender autosave/backups
+*.blend1
+*.blend2
+
+# Logs and scratch output
+*.log
+shots/
+
+# Local tool settings
+.claude/settings.local.json
+
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store

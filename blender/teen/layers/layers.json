@@ -1,0 +1,54 @@
+{
+ "eyes": [
+  "round",
+  "sleepy",
+  "cat",
+  "starry",
+  "gentle",
+  "smile",
+  "fierce",
+  "dewy"
+ ],
+ "brows": [
+  "soft",
+  "flat",
+  "arched",
+  "worried",
+  "fierce",
+  "bold"
+ ],
+ "mouths": [
+  "smile",
+  "open",
+  "grin",
+  "cat",
+  "tongue",
+  "line",
+  "o",
+  "wavy"
+ ],
+ "blush": [
+  "none",
+  "soft",
+  "rosy",
+  "lines"
+ ],
+ "iris": {
+  "sky": "#7FC8F8",
+  "honey": "#F2B35A",
+  "leaf": "#8FD46A",
+  "berry": "#D98BE8",
+  "lilac": "#B9B2EE",
+  "ember": "#F08A6A",
+  "lagoon": "#6ED8CC",
+  "ash": "#B8BCC8"
+ },
+ "hair": [
+  "Bob",
+  "Long",
+  "Buns",
+  "Ponytail",
+  "Crop",
+  "Twintails"
+ ]
+}

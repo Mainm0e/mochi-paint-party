@@ -1,0 +1,9 @@
+*.blend binary
+*.glb binary
+*.png binary
+*.wav binary
+*.gd text eol=lf
+*.gdshader text eol=lf
+*.gdshaderinc text eol=lf
+*.tscn text eol=lf
+*.godot text eol=lf

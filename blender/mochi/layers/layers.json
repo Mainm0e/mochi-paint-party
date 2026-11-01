@@ -1,0 +1,57 @@
+{
+ "eyes": [
+  "bean",
+  "sparkle",
+  "happy",
+  "sleepy",
+  "wink",
+  "dizzy",
+  "heart",
+  "angry",
+  "teary",
+  "shock"
+ ],
+ "mouths": [
+  "smile",
+  "frown",
+  "open",
+  "cat",
+  "grin",
+  "tongue",
+  "wavy",
+  "ooh"
+ ],
+ "cheeks": [
+  "none",
+  "soft",
+  "rosy",
+  "lines"
+ ],
+ "marks": [
+  "none",
+  "anger",
+  "sweat",
+  "sparkles",
+  "hearts"
+ ],
+ "flavors": {
+  "strawberry": "#f9c4cc",
+  "matcha": "#c3dfa8",
+  "plain": "#fbf7f1",
+  "ube": "#d2bff0",
+  "mango": "#ffdc90",
+  "kinako": "#e8c9a2",
+  "sakura": "#fbd9e4",
+  "blueberry": "#bfd0f4"
+ },
+ "toppings": [
+  "None",
+  "Sprout",
+  "Sakura",
+  "Berry",
+  "Bow",
+  "Crown",
+  "Dango"
+ ],
+ "ink": "#5a3a3a"
+}

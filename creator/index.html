@@ -1,0 +1,580 @@
+<title>Mochi Maker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+  /* Layout: a round "plate" stage beside a tabbed recipe card; stacks stage-over-card on phones. */
+  :root {
+    --bg: #f6f0f4;          /* rice-flour blush */
+    --panel: #fffdfd;
+    --tile: #f5edf1;
+    --ink: #4a3236;         /* the mochi's own cocoa outline */
+    --muted: #8c7378;
+    --line: #ecdfe4;
+    --accent: #e3789a;      /* strawberry daifuku */
+    --accent-ink: #ffffff;
+    --stage-1: #fdf8fb;
+    --stage-2: #eadff0;
+    --plate: #ffffff;
+    --shadow: 0 1px 2px rgb(74 50 54 / 0.08), 0 6px 18px rgb(74 50 54 / 0.08);
+    --display: "Mochiy Pop One", "Zen Maru Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+    --body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1f191c; --panel: #2a2226; --tile: #33292e; --ink: #f6ecef; --muted: #b59ea5; --line: #3e3237;
+      --accent: #f095b3; --accent-ink: #2a1621; --stage-1: #2f262c; --stage-2: #1b1619; --plate: #3a2f35;
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 22px rgb(0 0 0 / 0.3); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1f191c; --panel: #2a2226; --tile: #33292e; --ink: #f6ecef; --muted: #b59ea5; --line: #3e3237;
+    --accent: #f095b3; --accent-ink: #2a1621; --stage-1: #2f262c; --stage-2: #1b1619; --plate: #3a2f35;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 22px rgb(0 0 0 / 0.3); color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+
+  .app {
+    height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 430px); gap: 16px;
+    padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px)); box-sizing: border-box;
+  }
+
+  /* ---------- stage ---------- */
+  .stage {
+    position: relative; min-height: 0; border-radius: 28px; overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 40%, var(--stage-1), var(--stage-2));
+  }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .stage-top, .stage-bottom {
+    position: absolute; left: 14px; right: 14px; display: flex; gap: 8px; align-items: center;
+    justify-content: space-between; flex-wrap: wrap; pointer-events: none;
+  }
+  .stage-top { top: 14px; } .stage-bottom { bottom: 14px; flex-direction: column; align-items: flex-start; }
+  .stage-top > *, .stage-bottom > * { pointer-events: auto; }
+  .nametag {
+    font-family: var(--display); font-size: 18px; background: var(--panel); padding: 6px 16px; border-radius: 999px;
+    box-shadow: var(--shadow); max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    border: 0; background: var(--panel); border-radius: 999px; padding: 9px 16px; font-weight: 700;
+    box-shadow: var(--shadow); display: inline-flex; gap: 6px; align-items: center;
+  }
+  .pill.primary { background: var(--accent); color: var(--accent-ink); }
+  .emotes { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-radius: 20px; box-shadow: var(--shadow);
+    background: var(--panel); }
+  .chip { border: 0; background: var(--tile); border-radius: 999px; padding: 7px 12px; font-weight: 700; font-size: 13px; }
+  .chip:hover { background: var(--accent); color: var(--accent-ink); }
+  .hint { font-size: 13px; color: var(--muted); background: color-mix(in srgb, var(--panel) 75%, transparent);
+    padding: 6px 12px; border-radius: 999px; }
+  .loading {
+    position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
+    font-family: var(--display); color: var(--muted); font-size: 18px; padding: 16px;
+  }
+
+  /* ---------- panel ---------- */
+  .panel {
+    min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-radius: 28px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .panel-head { padding: 20px 22px 12px; display: grid; gap: 10px; }
+  .brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 26px; letter-spacing: 0.01em; text-wrap: balance; }
+  h1 span { color: var(--accent); }
+  .tagline { margin: 0; color: var(--muted); font-size: 13px; }
+  .name { display: flex; align-items: center; gap: 8px; background: var(--tile); border-radius: 14px; padding: 4px 4px 4px 14px; }
+  .name label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .name input { flex: 1; min-width: 0; border: 0; background: var(--panel); border-radius: 10px; padding: 8px 12px; font-family: var(--display); }
+
+  .tabs { display: flex; gap: 2px; padding: 0 14px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line); }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button {
+    border: 0; background: none; padding: 10px 10px 12px; color: var(--muted); font-weight: 700; white-space: nowrap;
+    border-bottom: 3px solid transparent; margin-bottom: -1px;
+  }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+  .pane { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px 22px; display: grid; gap: 18px; align-content: start; }
+  .group { display: grid; gap: 10px; }
+  .group h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+  .opt {
+    border: 2px solid transparent; background: var(--tile); border-radius: 16px; padding: 6px 6px 8px;
+    display: grid; gap: 4px; justify-items: center; font-size: 13px; font-weight: 700; color: var(--muted);
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  .opt canvas { width: 100%; height: auto; border-radius: 11px; display: block; }
+  .opt:hover { transform: translateY(-1px); }
+  .opt[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .sw {
+    width: 40px; height: 40px; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%; /* little mochi */
+    border: 2.5px solid var(--ink); background: var(--c); position: relative;
+  }
+  .sw::after { content: ""; position: absolute; left: 22%; top: 18%; width: 22%; height: 14%; border-radius: 50%;
+    background: rgb(255 255 255 / 0.85); transform: rotate(-35deg); }
+  .sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--panel), 0 0 0 5.5px var(--accent); }
+  .swatches.dots .sw { border-radius: 50%; }
+  .swatches.dots .sw::after { display: none; }
+  .sw-label { display: grid; justify-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .custom { position: relative; width: 40px; height: 40px; border-radius: 50%; overflow: hidden;
+    background: conic-gradient(#f59ab4, #f2c46a, #a6dc8a, #7fc8f8, #b9a2ee, #f59ab4); box-shadow: 0 0 0 1.5px var(--line); }
+  .custom input { position: absolute; inset: -8px; width: 56px; height: 56px; opacity: 0; cursor: pointer; }
+
+  .panel-foot { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 22px 18px; border-top: 1px solid var(--line); }
+  .panel-foot .pill { box-shadow: none; background: var(--tile); }
+  .panel-foot .pill.primary { background: var(--accent); }
+  .code { display: flex; gap: 8px; width: 100%; }
+  .code input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--tile); border-radius: 12px; padding: 8px 12px; font-size: 13px; }
+  .status { font-size: 13px; color: var(--muted); min-height: 1.2em; width: 100%; }
+
+  .shot { position: fixed; inset: 0; display: grid; place-items: center; background: rgb(30 18 24 / 0.6); z-index: 20; padding: 16px; }
+  .shot figure { margin: 0; background: var(--panel); border-radius: 24px; padding: 14px; display: grid; gap: 10px; max-width: min(560px, 100%); }
+  .shot img { border-radius: 16px; background: radial-gradient(120% 90% at 50% 40%, var(--stage-1), var(--stage-2)); }
+  .shot figcaption { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 820px) {
+    html, body { height: auto; }
+    .app { grid-template-columns: 1fr; height: auto; }
+    .stage { height: 52svh; min-height: 320px; }
+    .panel { overflow: visible; }
+    .pane { overflow: visible; }
+  }
+  @media (prefers-reduced-motion: reduce) { .opt { transition: none; } }
+</style>
+
+<main class="app">
+  <section class="stage" id="stage" aria-label="Mochi preview">
+    <div class="loading" id="loading">Pounding the rice…</div>
+    <div class="stage-top">
+      <span class="nametag" id="nametag">Mochi</span>
+      <button class="pill" id="snap">Snapshot</button>
+    </div>
+    <div class="stage-bottom">
+      <div class="emotes" id="emotes" role="group" aria-label="Emotes"></div>
+      <span class="hint">Drag to turn · tap to squish</span>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="panel-head">
+      <div class="brand">
+        <h1>Mochi <span>Maker</span></h1>
+        <p class="tagline">Squishy friend creator · v0.2</p>
+      </div>
+      <div class="name">
+        <label for="name">Name</label>
+        <input id="name" maxlength="16" autocomplete="off" value="Mochi">
+      </div>
+    </div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="pane" id="pane" role="tabpanel"></div>
+    <div class="panel-foot">
+      <button class="pill primary" id="random">Surprise me</button>
+      <button class="pill" id="reset">Reset</button>
+      <div class="code">
+        <input id="code" aria-label="Mochi code" placeholder="Paste a mochi code to load it">
+        <button class="pill" id="copy">Copy code</button>
+        <button class="pill" id="load">Load</button>
+      </div>
+      <div class="status" id="status" role="status"></div>
+    </div>
+  </aside>
+</main>
+
+<div class="shot" id="shot" hidden>
+  <figure>
+    <img id="shot-img" alt="Snapshot of your mochi">
+    <figcaption><span>Right-click or long-press the picture to save it.</span><button class="pill" id="shot-close">Close</button></figcaption>
+  </figure>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const ASSETS = "assets/";
+const TEX = 1024;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (id) => document.getElementById(id);
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const LAYERS = await fetch(ASSETS + "layers/layers.json").then((r) => r.json());
+const INK = LAYERS.ink;
+const EYE_COLORS = { cocoa: INK, midnight: "#2f3150", berry: "#9b3b5c", ocean: "#2e6ea6", forest: "#3d7a4f",
+  plum: "#6a4a9c", ember: "#b5533c" };
+const ACCENTS = { pink: "#f58faa", cherry: "#e0596f", sun: "#f5c35b", mint: "#7fd1b4", sky: "#7fb5ec", grape: "#a585e0" };
+const DEFAULT = { name: "Mochi", flavor: LAYERS.flavors.strawberry, topping: "Sprout", eyes: "bean", eyeColor: INK,
+  mouth: "smile", cheeks: "soft", marks: "none", accent: ACCENTS.pink };
+let S = { ...DEFAULT };
+const TABS = [["flavor", "Flavor"], ["topping", "Topping"], ["eyes", "Eyes"], ["mouth", "Mouth"], ["cheeks", "Cheeks"], ["mood", "Mood"]];
+
+// ------------------------------------------------------------------ face layers
+const loadImg = (src) => new Promise((res, rej) => {
+  const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(`Could not load ${src}`)); i.src = src;
+});
+const IMG = { eyes: {}, mask: {}, mouths: {}, cheeks: {}, marks: {} };
+await Promise.all([
+  loadImg(ASSETS + "layers/shine.png").then((i) => (IMG.shine = i)),
+  ...LAYERS.eyes.flatMap((n) => [
+    loadImg(`${ASSETS}layers/eyes/${n}.png`).then((i) => (IMG.eyes[n] = i)),
+    loadImg(`${ASSETS}layers/eyes/${n}_mask.png`).then((i) => (IMG.mask[n] = i)),
+  ]),
+  ...LAYERS.mouths.map((n) => loadImg(`${ASSETS}layers/mouths/${n}.png`).then((i) => (IMG.mouths[n] = i))),
+  ...LAYERS.cheeks.filter((n) => n !== "none").map((n) => loadImg(`${ASSETS}layers/cheeks/${n}.png`).then((i) => (IMG.cheeks[n] = i))),
+  ...LAYERS.marks.filter((n) => n !== "none").map((n) => loadImg(`${ASSETS}layers/marks/${n}.png`).then((i) => (IMG.marks[n] = i))),
+]);
+
+const FULL = [0, 0, TEX, TEX];
+const work = document.createElement("canvas");
+function tint(src, color, crop, w, h) {
+  work.width = w; work.height = h;
+  const c = work.getContext("2d");
+  c.clearRect(0, 0, w, h);
+  c.drawImage(src, ...crop, 0, 0, w, h);
+  c.globalCompositeOperation = "source-in";
+  c.fillStyle = color; c.fillRect(0, 0, w, h);
+  c.globalCompositeOperation = "source-over";
+  return work;
+}
+// parts: which layers to draw (thumbnails draw just one)
+function paintFace(ctx, s, crop = FULL, w = TEX, h = TEX, parts = { shine: 1, cheeks: 1, marks: 1, eyes: 1, mouth: 1 }) {
+  const draw = (img) => ctx.drawImage(img, ...crop, 0, 0, w, h);
+  if (parts.shine) draw(IMG.shine);
+  if (parts.cheeks && s.cheeks !== "none") draw(IMG.cheeks[s.cheeks]);
+  if (parts.marks && s.marks !== "none") draw(IMG.marks[s.marks]);
+  if (parts.eyes) {
+    draw(IMG.eyes[s.eyes]);
+    const t = tint(IMG.mask[s.eyes], s.eyeColor, crop, w, h);
+    ctx.globalCompositeOperation = "multiply"; ctx.drawImage(t, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+  }
+  if (parts.mouth) draw(IMG.mouths[s.mouth]);
+}
+const faceCanvas = Object.assign(document.createElement("canvas"), { width: TEX, height: TEX });
+const faceTex = new THREE.CanvasTexture(faceCanvas);
+faceTex.flipY = false; faceTex.colorSpace = THREE.SRGBColorSpace; faceTex.anisotropy = 4;
+
+// ------------------------------------------------------------------ three.js stage
+const stage = $("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 20);
+camera.position.set(0.72, 0.78, 2.05);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enablePan = false; controls.enableDamping = true;
+controls.minDistance = 0.7; controls.maxDistance = 3;
+controls.minPolarAngle = 0.3; controls.maxPolarAngle = 1.62;
+controls.target.set(0, 0.24, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.35);
+sun.position.set(-0.8, 1.6, 1.5);
+scene.add(sun);
+
+const plateCv = Object.assign(document.createElement("canvas"), { width: 256, height: 256 });
+{
+  const c = plateCv.getContext("2d"), g = c.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, "rgba(90,58,70,0.30)"); g.addColorStop(0.55, "rgba(90,58,70,0.12)"); g.addColorStop(1, "rgba(90,58,70,0)");
+  c.fillStyle = g; c.fillRect(0, 0, 256, 256);
+}
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0),
+  new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plateCv), transparent: true, depthWrite: false }));
+shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.001;
+scene.add(shadow);
+
+// two-band toon shading + faint rim (matches the Blender renders)
+const gradient = new THREE.DataTexture(new Uint8Array([92, 255]), 2, 1, THREE.RedFormat);
+gradient.minFilter = gradient.magFilter = THREE.NearestFilter; gradient.needsUpdate = true;
+function toon(params, rim = 0.1) {
+  const m = new THREE.MeshToonMaterial({ gradientMap: gradient, ...params });
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace("#include <tonemapping_fragment>", `
+      gl_FragColor.rgb += ${rim.toFixed(3)} * smoothstep(0.55, 0.95, 1.0 - saturate(dot(normal, normalize(vViewPosition)))) * gl_FragColor.a;
+      #include <tonemapping_fragment>`);
+  };
+  m.customProgramCacheKey = () => `toon-${rim}`;
+  return m;
+}
+// inverted-hull outline: back faces pushed out along the normal, in the mochi's cocoa ink
+function outlineMaterial(thick) {
+  const m = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace("#include <begin_vertex>",
+      `vec3 transformed = position + normalize(normal) * ${thick.toFixed(4)};`);
+  };
+  m.customProgramCacheKey = () => `outline-${thick}`;
+  return m;
+}
+
+const MATS = {}, TOPS = {};
+const root = new THREE.Group();
+scene.add(root);
+const gltf = await new GLTFLoader().loadAsync(ASSETS + "mochi.gltf.json");
+const model = gltf.scene;
+root.add(model);
+const meshes = [];
+model.traverse((o) => {
+  const top = o.name.replace("Mochi_Top_", "");
+  if (o.name.startsWith("Mochi_Top_") && LAYERS.toppings.includes(top)) TOPS[top] = o;
+  if (o.isMesh) meshes.push(o);
+});
+const decal = (map) => toon({ map, transparent: true, depthWrite: false, polygonOffset: true,
+  polygonOffsetFactor: -2, polygonOffsetUnits: -2 }, 0);
+for (const o of meshes) {
+  const key = o.material.name;
+  if (!MATS[key]) {
+    if (key === "MochiFace") MATS[key] = decal(faceTex);
+    else if (key.startsWith("MochiEmote_")) MATS[key] = decal(o.material.map);  // emote faces bring their own art
+    else if (key === "Outline") MATS[key] = new THREE.MeshBasicMaterial({ color: INK });  // baked hull on effects
+    else MATS[key] = toon({ color: o.material.color.clone() }, key === "MochiBody" ? 0.1 : 0.06);
+  }
+  o.material = MATS[key];
+  o.frustumCulled = false;
+  // emote faces and effect props are shrunk inside the body until an emote scales their bones up
+  if (key !== "MochiFace" && !/^Mochi_(FX|Emote)_/.test(o.name) && !/^Mochi_(FX|Emote)_/.test(o.parent?.name ?? "")) {
+    const hull = o.clone();
+    hull.material = outlineMaterial(o.name.startsWith("Mochi_Body") ? 0.007 : 0.0032);
+    hull.position.set(0, 0, 0); hull.rotation.set(0, 0, 0); hull.scale.set(1, 1, 1);
+    hull.frustumCulled = false;
+    o.add(hull);
+  }
+}
+const mixer = new THREE.AnimationMixer(model);
+const clip = (n) => gltf.animations.find((a) => a.name === n);
+const idle = mixer.clipAction(clip("Idle")); idle.play();
+const ACT = {};
+for (const a of gltf.animations.filter((a) => a.name !== "Idle")) {
+  ACT[a.name] = mixer.clipAction(a); ACT[a.name].setLoop(THREE.LoopOnce); ACT[a.name].clampWhenFinished = true;
+}
+const EMOTES = ["Happy", "Love", "Angry", "Sad", "Surprised", "Sleepy"].filter((n) => ACT[n]);
+$("emotes").replaceChildren(...["Bounce", "Wiggle", ...EMOTES].map((n) => {
+  const b = Object.assign(document.createElement("button"), { className: "chip", type: "button", textContent: n });
+  b.onclick = () => play(n);
+  return b;
+}));
+mixer.addEventListener("finished", (e) => {
+  if (e.action !== idle) { idle.reset().fadeIn(0.25).play(); e.action.fadeOut(0.25); }
+});
+function play(n) {
+  for (const a of Object.values(ACT)) if (a !== ACT[n]) a.stop();  // one emote at a time
+  ACT[n].reset().fadeIn(0.12).play(); idle.fadeOut(0.12);
+}
+$("loading").remove();
+
+// ------------------------------------------------------------------ apply state
+const shade = (hex, t) => "#" + new THREE.Color(hex).lerp(new THREE.Color("#9a6c8c"), t).getHexString();
+function apply() {
+  for (const [n, node] of Object.entries(TOPS)) node.visible = n === S.topping;
+  MATS.MochiBody.color.set(S.flavor);
+  MATS.Accent?.color.set(S.accent);
+  const fc = faceCanvas.getContext("2d");
+  fc.clearRect(0, 0, TEX, TEX); paintFace(fc, S);
+  faceTex.needsUpdate = true;
+  $("nametag").textContent = S.name || "Mochi";
+  $("name").value = S.name;
+  try { localStorage.setItem("mochi-maker", JSON.stringify(S)); } catch {}
+}
+
+// ------------------------------------------------------------------ tap to squish
+let squish = -1, down = null;
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+renderer.domElement.addEventListener("pointerdown", (e) => (down = [e.clientX, e.clientY]));
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  if (ray.intersectObject(model, true).length) squish = 0;
+});
+
+// ------------------------------------------------------------------ render loop
+const clock = new THREE.Clock();
+function resize() {
+  const { clientWidth: w, clientHeight: h } = stage;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.zoom = Math.min(1, camera.aspect / 1.1);  // keep the whole mochi in frame on narrow stages
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  mixer.update(dt);
+  if (squish >= 0) {
+    squish += dt;
+    const amp = reduceMotion ? 0.06 : 0.2;
+    const sy = 1 - amp * Math.exp(-squish * 4.5) * Math.cos(squish * 16);
+    root.scale.set(1 / Math.sqrt(sy), sy, 1 / Math.sqrt(sy));
+    if (squish > 1.6) { squish = -1; root.scale.set(1, 1, 1); }
+  }
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+// ------------------------------------------------------------------ thumbnails
+// crops in face-texture pixels: x = (u + 0.36) / 0.72 * 1024, y = (0.70 - z) / 0.72 * 1024
+const CROPS = { eyes: [272, 527, 480, 240], mouth: [432, 721, 160, 80], cheeks: [200, 570, 624, 312], marks: [112, 440, 800, 400] };
+function faceTile(kind, s) {
+  const cv = Object.assign(document.createElement("canvas"), { width: 240, height: 120 });
+  const c = cv.getContext("2d");
+  c.fillStyle = s.flavor; c.fillRect(0, 0, 240, 120);
+  if (kind === "none") return cv;
+  paintFace(c, s, CROPS[kind], 240, 120, { [kind]: 1 });
+  return cv;
+}
+const thumbCam = new THREE.PerspectiveCamera(30, 1, 0.05, 10);
+thumbCam.position.set(0.32, 0.66, 0.78); thumbCam.lookAt(0, 0.46, 0);
+function toppingTile(name) {
+  const px = 200, pr = renderer.getPixelRatio(), size = new THREE.Vector2();
+  renderer.getSize(size);
+  for (const [n, node] of Object.entries(TOPS)) node.visible = n === name;
+  shadow.visible = false;
+  renderer.setScissorTest(true);
+  renderer.setViewport(0, 0, px / pr, px / pr); renderer.setScissor(0, 0, px / pr, px / pr);
+  renderer.render(scene, thumbCam);
+  const cv = Object.assign(document.createElement("canvas"), { width: px, height: px });
+  cv.getContext("2d").drawImage(renderer.domElement, 0, renderer.domElement.height - px, px, px, 0, 0, px, px);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, size.x, size.y);
+  shadow.visible = true;
+  for (const [n, node] of Object.entries(TOPS)) node.visible = n === S.topping;
+  renderer.render(scene, camera);
+  return cv;
+}
+
+// ------------------------------------------------------------------ panel UI
+let tab = "flavor";
+function el(tag, props = {}, kids = []) {
+  const e = Object.assign(document.createElement(tag), props);
+  for (const k of [].concat(kids)) e.append(k);
+  return e;
+}
+function optionGrid(title, items, key, tile) {
+  return el("div", { className: "group" }, [
+    el("h2", { textContent: title }),
+    el("div", { className: "grid" }, items.map((v) => {
+      const b = el("button", { className: "opt", type: "button" }, [tile(v), cap(v)]);
+      b.setAttribute("aria-pressed", String(S[key] === v));
+      b.onclick = () => set({ [key]: v });
+      return b;
+    })),
+  ]);
+}
+function swatches(title, palette, key, { labels = false, dots = false } = {}) {
+  const row = el("div", { className: "swatches" + (dots ? " dots" : "") });
+  for (const [n, c] of Object.entries(palette)) {
+    const b = el("button", { className: "sw", type: "button", title: cap(n) });
+    b.style.setProperty("--c", c);
+    b.setAttribute("aria-label", cap(n));
+    b.setAttribute("aria-pressed", String(S[key].toLowerCase() === c.toLowerCase()));
+    b.onclick = () => set({ [key]: c });
+    row.append(labels ? el("div", { className: "sw-label" }, [b, cap(n)]) : b);
+  }
+  const pick = el("input", { type: "color", value: S[key], id: `pick-${key}` });
+  pick.setAttribute("aria-label", `Custom ${title.toLowerCase()}`);
+  pick.oninput = () => set({ [key]: pick.value }, false);
+  const custom = el("label", { className: "custom", title: "Custom colour" }, [pick]);
+  row.append(labels ? el("div", { className: "sw-label" }, [custom, "Custom"]) : custom);
+  return el("div", { className: "group" }, [el("h2", { textContent: title }), row]);
+}
+function renderTabs() {
+  $("tabs").replaceChildren(...TABS.map(([id, label]) => {
+    const b = el("button", { type: "button", role: "tab", textContent: label, id: `tab-${id}` });
+    b.setAttribute("aria-selected", String(id === tab));
+    b.onclick = () => { tab = id; renderTabs(); renderPane(); };
+    return b;
+  }));
+}
+function renderPane() {
+  const s = S;
+  const parts = {
+    flavor: () => [swatches("Flavor", LAYERS.flavors, "flavor", { labels: true })],
+    topping: () => [optionGrid("Topping", LAYERS.toppings, "topping", toppingTile),
+      swatches("Bow colour", ACCENTS, "accent", { dots: true })],
+    eyes: () => [optionGrid("Eyes", LAYERS.eyes, "eyes", (v) => faceTile("eyes", { ...s, eyes: v })),
+      swatches("Eye colour", EYE_COLORS, "eyeColor", { dots: true })],
+    mouth: () => [optionGrid("Mouth", LAYERS.mouths, "mouth", (v) => faceTile("mouth", { ...s, mouth: v }))],
+    cheeks: () => [optionGrid("Cheeks", LAYERS.cheeks, "cheeks", (v) => faceTile(v === "none" ? "none" : "cheeks", { ...s, cheeks: v }))],
+    mood: () => [optionGrid("Mood marks", LAYERS.marks, "marks", (v) => faceTile(v === "none" ? "none" : "marks", { ...s, marks: v }))],
+  };
+  $("pane").replaceChildren(...parts[tab]());
+  $("pane").setAttribute("aria-labelledby", `tab-${tab}`);
+}
+function set(patch, rerender = true) {
+  S = { ...S, ...patch };
+  apply();
+  if (rerender) renderPane();
+}
+
+// ------------------------------------------------------------------ actions
+const status = (t) => { $("status").textContent = t; };
+const pick = (o) => { const v = Array.isArray(o) ? o : Object.values(o); return v[Math.floor(Math.random() * v.length)]; };
+$("random").onclick = () => {
+  set({ flavor: pick(LAYERS.flavors), topping: pick(LAYERS.toppings), eyes: pick(LAYERS.eyes), eyeColor: pick(EYE_COLORS),
+    mouth: pick(LAYERS.mouths), cheeks: pick(LAYERS.cheeks), marks: pick(LAYERS.marks), accent: pick(ACCENTS) });
+  play("Bounce");
+  status("Fresh mochi! Tap Surprise me again for another.");
+};
+$("reset").onclick = () => { set({ ...DEFAULT, name: S.name }); status("Back to a plain strawberry mochi."); };
+$("name").oninput = (e) => {
+  S.name = e.target.value;
+  $("nametag").textContent = S.name || "Mochi";
+  try { localStorage.setItem("mochi-maker", JSON.stringify(S)); } catch {}
+};
+function valid(o) {
+  const hex = /^#[0-9a-f]{6}$/i;
+  return o && LAYERS.toppings.includes(o.topping) && LAYERS.eyes.includes(o.eyes) && LAYERS.mouths.includes(o.mouth)
+    && LAYERS.cheeks.includes(o.cheeks) && LAYERS.marks.includes(o.marks)
+    && ["flavor", "eyeColor", "accent"].every((k) => hex.test(o[k]));
+}
+$("copy").onclick = async () => {
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(S))));
+  $("code").value = code;
+  try { await navigator.clipboard.writeText(code); status("Mochi code copied. Paste it here later to load this mochi."); }
+  catch { $("code").select(); status("The code is in the box. Copy it with Ctrl+C or Cmd+C."); }
+};
+$("load").onclick = () => {
+  try {
+    const o = JSON.parse(decodeURIComponent(escape(atob($("code").value.trim()))));
+    if (!valid(o)) throw new Error();
+    set({ ...DEFAULT, ...o, name: String(o.name ?? "Mochi").slice(0, 16) });
+    play("Bounce");
+    status(`Loaded ${S.name}.`);
+  } catch { status("That code didn't work. Use Copy code to get a full code, then try again."); }
+};
+$("snap").onclick = () => {
+  renderer.render(scene, camera);
+  $("shot-img").src = renderer.domElement.toDataURL("image/png");
+  $("shot").hidden = false;
+  $("shot-close").focus();
+};
+$("shot-close").onclick = () => ($("shot").hidden = true);
+$("shot").onclick = (e) => { if (e.target === $("shot")) $("shot").hidden = true; };
+
+// ------------------------------------------------------------------ boot
+try {
+  const saved = JSON.parse(localStorage.getItem("mochi-maker") || "null");
+  if (valid(saved)) S = { ...DEFAULT, ...saved };
+} catch {}
+apply();
+renderTabs();
+renderPane();
+</script>

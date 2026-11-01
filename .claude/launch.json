@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mochi-maker",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["creator/serve.mjs"],
+      "port": 5173
+    },
+    {
+      "name": "doodle-mochi",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["creator/serve.mjs", "game", "5174"],
+      "port": 5174
+    }
+  ]
+}
