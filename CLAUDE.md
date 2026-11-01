@@ -97,6 +97,12 @@ edge hedges, groves/bushes/rocks/flower beds placed with `_clear()` keep-outs, b
 Chapter 2 **The Village** (`_build_village`): canal, Sketch Mochi (use button draws a 5 m ink bridge,
 `world.sketch_bridge`, rubbed out after 6 s, 2 at a time), rooftops + Clock Tower, laundry lines, Windmill Hill,
 chimney-yard nest, market cage, hedge maze, friends Glim (spark), Postie (3 letters), Zip (hoop race). 12 stars.
+Chapter 3 **Seaside** (`_build_seaside`): beach + sea with a tide (`_tick_tide`, `TIDE_*`, `in_sea` -> splash +
+redraw), Bubble Mochi (mochi collides with the sea layer `Mochi.WATER_LAYER` and bounces on big falls), buoy riding
+the tide (`floats`), sand bar, Lighthouse Isle, shipwreck reef, coral cave, dune, rock pools, sandcastle cage,
+friends Clack (3 shells) and Gale (race). 12 stars.
+Audio: per-page music (`main.MUSIC`, `audio.play_music` crossfades), surface footsteps (`world.surface_at`; body
+meta "surface" or `PAGE_SURFACE`; wood/sand by paper colour in `SURFACES`).
 The full commercial plan (chapters 3-5, polish list, Steam checklist, roadmap) is **docs/level_design.md**.
 Polish so far: camera collision (ray from mochi to camera, `_update_camera`), jump buffer + tap-for-short-hop
 (`mochi.gd` `_buffer` / `_cuttable`), Bloom Star celebration (`_celebrate`: hit-stop, `_punch` camera lean, confetti),

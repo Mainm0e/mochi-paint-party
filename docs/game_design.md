@@ -2,7 +2,7 @@
 
 *Status: first draft, 2026-11-01. Direction chosen: **Sketchbook Adventure**, casual with some challenge, PC (Windows) first.*
 
-**The level-by-level plan for a €10–20 Steam release (chapters, star lists, polish, roadmap) is in [level_design.md](level_design.md).** Built so far: the Meadow and the Village (Sketch Mochi).
+**The level-by-level plan for a €10–20 Steam release (chapters, star lists, polish, roadmap) is in [level_design.md](level_design.md).** Built so far: the Meadow, the Village (Sketch Mochi) and Seaside (Bubble Mochi, tides).
 
 ## Pitch
 

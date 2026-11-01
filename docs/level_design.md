@@ -76,11 +76,36 @@ the middle (fall in and you are redrawn); **Rooftop Row** north-west; **Windmill
 | Garden Maze | garden | find the way through tall hedges | navigation |
 | Every Drop | all | eat all paint drops | completion |
 
-## 5. Chapters 3–5 (plans to build next)
+## 4b. Chapter 3: Seaside (built)
 
-**Seaside (Bubble).** Beach plaza, a tide that rises every 60 s (the low tide reveals sand bars and caves),
-the lighthouse whose rotating beam is a moving platform at night, bubble rides up a waterfall, a shipwreck
-Trail. Friends: a crab who lost its shell (find 3 shells), a seagull race over waves.
+*A sandy beach, the open sea, the Lighthouse Isle, a shipwreck reef and a coral cave. Power: **Bubble Mochi**
+(eat a bubble doodle: walk on water; a big fall bounces you back up). Signature idea: **the tide** turns every
+~25 s (22 s high, a 4 s fall, 22 s low, a 4 s rise, with a bell and a warning just before it comes back in). Low
+tide uncovers a sand bar, reef rocks and the cave floor; high tide floods them (a plain mochi gets splashed back
+to the last flag, a bubble just floats).*
+
+| Star | How you earn it | Teaches / tests |
+|---|---|---|
+| Buoy | walk on the water to the buoy that rides the tide | Bubble (teach) |
+| Sand Bar | walk out along the sand bar at low tide | reading the tide |
+| Lighthouse | low tide or Bubble to the isle, then 9 spiral ledges to the lamp | climbing |
+| Shipwreck | reef rocks at low tide (or Bubble) to the wreck; the star is in the hull | tide + Bubble |
+| Coral Cave | under the coral arch; the floor is dry only at low tide | tide timing |
+| Big Dune | sandy terraces to the top | warm-up climb |
+| Rock Pools | hidden behind the big boulder | curiosity |
+| Sandcastle | eat a pebble, stomp the switch, the castle cage sinks | Stone (revisit) |
+| Cove Smudgies | clean every Smudgie in the drift weed | combat |
+| Clack's Shells | find 3 shells (dune, wreck, rock pools) | exploration quest |
+| Gale's Race | 6 hoops out over the sand bar in 34 s: needs low tide or Bubble | timed + tide |
+| Every Drop | eat all paint drops | completion |
+
+Audio: each page has its own theme (Meadow "Paper Stroll", Village "Village Square" waltz, Seaside "Seaside
+Breeze"), footsteps change with the ground (grass, stone, wood, sand, water), and the tide rings a bell.
+
+## 5. Chapters 4–5 (plans to build next)
+
+**Seaside (Bubble):** built, see 4b. Ideas left for later: the lighthouse beam as a moving platform at night,
+bubble rides up a waterfall, a shipwreck Trail, 3 more stars to reach 15.
 
 **Snowy Notebook (Toasty, Boing).** Slippery ice changes movement (lower grip); Toasty melts ice walls and
 icicle gates; Boing super-jumps up the cliffs. Night falls after the third star: constellations become paths
@@ -105,8 +130,8 @@ towers, then a final "eat the Eraser's shadow" moment that paints the whole book
 
 | Area | Status | Needed |
 |---|---|---|
-| Chapters | Meadow, Village built | Seaside, Snowy, Castle, 4 bonus pages |
-| Powers | Puffy, Stone, Sketch | Bubble, Toasty, Boing |
+| Chapters | Meadow, Village, Seaside built | Snowy, Castle, 4 bonus pages |
+| Powers | Puffy, Stone, Sketch, Bubble | Toasty, Boing |
 | Bosses | none | Eraser encounters (3) |
 | Menus | main, pause, creator | options (graphics, audio, controls, rebinding, language), save slots, credits |
 | Saves | single JSON | 3 slots, Steam Cloud |

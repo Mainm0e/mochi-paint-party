@@ -12,7 +12,7 @@ const CROPS := {"eyes": Rect2i(272, 527, 480, 240), "mouths": Rect2i(432, 721, 1
 	"cheeks": Rect2i(200, 570, 624, 312), "marks": Rect2i(112, 440, 800, 400)}
 const FALL_Y := -6.0            # below this the mochi is redrawn at the last checkpoint
 const MUSIC := {"village": "music_village_square", "seaside": "music_seaside_breeze"}  # pages with their own theme
-const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6", "sketch": "ffe07a"}
+const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6", "sketch": "ffe07a", "bubble": "bfe6ff"}
 
 enum Mode { MENU, CREATE, PLAY, PAUSED }
 
@@ -104,6 +104,8 @@ func _ready() -> void:
 	world.friend_said.connect(func(title: String, text: String, seconds: float):
 		speech_label.text = "%s:  %s" % [title, text]
 		_speech_until = time + seconds)
+	world.tide_changed.connect(_on_tide)
+	mochi.bounced.connect(func(): audio.play("bubble", -2.0, 0.1))
 	world.race_update.connect(func(text: String):
 		audio.play("collect", -6.0, 0.0, 1.4)
 		_toast(text))
@@ -1088,6 +1090,11 @@ func _process(delta: float) -> void:
 			if not _told.has("smudge"):
 				_told["smudge"] = true
 				think("Ouch! Those Smudgies push. Eat them, or spit a star!", 3.0)
+		if world.in_sea(mochi.global_position):  # into the sea without a bubble: splash, and redrawn
+			audio.play("splash", -2.0, 0.05)
+			mochi.redraw_at(world.spawn_point())
+			follow = mochi.global_position
+			think(["Brr, salty! Redrawn.", "Splash! Bubbles float, I don't.", "The sea's for bubbles!"].pick_random(), 2.0)
 		if mochi.global_position.y < FALL_Y:  # off the page: drawn back in at the last flag
 			mochi.redraw_at(world.spawn_point())
 			follow = mochi.global_position
@@ -1161,6 +1168,21 @@ func _draw_page_map() -> void:
 	map_view.draw_arc(me, 7.0, 0, TAU, 18, INK, 2.0)
 	var look := Vector2(sin(mochi.rotation.y), cos(mochi.rotation.y)) * 12.0
 	map_view.draw_line(me, me + look, INK, 2.0)
+
+
+## Seaside's tide turned: a bell, a toast, and the mochi says what it means.
+func _on_tide(phase: String) -> void:
+	match phase:
+		"falling":
+			audio.play("tide", -4.0, 0.0)
+			_toast("Low tide!")
+		"low":
+			think("The sea went out! New paths on the sand.", 2.6)
+		"soon":
+			audio.play("tide", -4.0, 0.0, 1.2)
+			think("The tide's turning... get off the sand bars!", 2.6)
+		"rising":
+			_toast("High tide!")
 
 
 ## A Bloom Star is gobbled: the moment freezes for a heartbeat, confetti bursts, the camera leans in.
@@ -1517,5 +1539,63 @@ func _autotest(dir: String) -> void:
 	await shot.call("15_rooftops")
 	cinematic = false
 	ui.visible = true
+	# --- Chapter 3: Seaside
+	enter_level("seaside")
+	set_mode(Mode.PLAY)
+	mochi.set_power("")
+	await wait.call(2.0)
+	await shot.call("16_seaside_start")
+	print("AUTOTEST tide: %s, sea %.2f" % [world.tide.phase, world.tide.level])
+	# low tide: walk the sand bar to its star
+	world.tide.t = World.TIDE_HOLD + World.TIDE_TURN + 0.5
+	await wait.call(0.5)
+	print("AUTOTEST after the turn: %s, sea %.2f" % [world.tide.phase, world.tide.level])
+	place.call(Vector3(18, -0.5, -4.6))
+	await star_wait.call(0)
+	print("AUTOTEST sand bar star at low tide: stars %d, still dry %s" % [_stars("seaside"), not world.in_sea(mochi.global_position)])
+	await shot.call("17_low_tide")
+	# the tide comes back in: a plain mochi on the bar gets splashed and redrawn
+	world.tide.t = World.TIDE_HOLD * 2.0 + World.TIDE_TURN * 2.0 - 0.3
+	await wait.call(1.0)
+	print("AUTOTEST high tide again: %s, mochi back on the beach %s" % [world.tide.phase, mochi.global_position.z > 4.0])
+	# Bubble Mochi: walk on the water out to the buoy star
+	place.call(Vector3(-4, 0.1, 10.3))
+	for i in 200:
+		await get_tree().process_frame
+		if mochi.power == "bubble":
+			break
+	await wait.call(1.0)
+	print("AUTOTEST power at the pedestal: '%s'" % mochi.power)
+	place.call(Vector3(0, 0.6, 1.0), PI)
+	yaw = 0.0
+	await wait.call(0.5)
+	print("AUTOTEST standing on the sea: y %.2f, in sea %s" % [mochi.global_position.y, world.in_sea(mochi.global_position)])
+	Input.action_press("move_forward")
+	await wait.call(2.6)
+	Input.action_release("move_forward")
+	await star_wait.call(1)
+	print("AUTOTEST buoy star: stars %d" % _stars("seaside"))
+	await shot.call("18_bubble_on_water")
+	# a big fall bounces a bubble back up
+	var bounces := [0]
+	mochi.bounced.connect(func(): bounces[0] += 1)
+	print("AUTOTEST before the drop: power %s" % mochi.power)
+	place.call(Vector3(-2, 6.0, 20))
+	var bounce_peak := 0.0
+	var landed := false
+	var airborne := false
+	for i in 60:  # 3 s, polled by time (frames can run faster than real time here)
+		await wait.call(0.05)
+		airborne = airborne or not mochi.is_on_floor()
+		if airborne and mochi.global_position.y < 0.4:  # (the bounce leaves the ground in the landing frame)
+			landed = true
+		if landed:
+			bounce_peak = maxf(bounce_peak, mochi.global_position.y)
+	print("AUTOTEST bubble bounce peak after landing: %.2f (bounces %d)" % [bounce_peak, bounces[0]])
+	# the lighthouse gallery
+	place.call(Vector3(19.5, 10.2, -17.5))
+	await star_wait.call(_stars("seaside"))
+	await shot.call("19_lighthouse")
+	print("AUTOTEST seaside stars: %d / %d" % [_stars("seaside"), world.page_stars("seaside")])
 	print("AUTOTEST DONE")
 	get_tree().quit()

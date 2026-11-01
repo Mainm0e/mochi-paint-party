@@ -26,11 +26,13 @@ const POWERS := {
 	"puffy": {"name": "Puffy Mochi", "color": "f6f7ff", "hint": "I'm all puffy! Hold Space in the air to float."},
 	"stone": {"name": "Stone Mochi", "color": "b5b8c6", "hint": "So heavy! Press Space in the air to stomp."},
 	"sketch": {"name": "Sketch Mochi", "color": "ffe9a0", "hint": "I can draw! Click (or X) to sketch a bridge in front of me."},
+	"bubble": {"name": "Bubble Mochi", "color": "bfe6ff", "hint": "I'm a bubble! I can walk on water, and big falls bounce me back up."},
 }
 
 signal stepped
 signal jumped
 signal landed
+signal bounced      # Bubble Mochi sprang back up from a big fall
 signal squished
 signal emoted(anim_name: String)
 signal double_jumped
@@ -60,6 +62,7 @@ const GRAVITY := -11.0
 const JUMP := 3.6
 const JUMP_BUFFER := 0.14       # seconds a too-early jump press is remembered
 const JUMP_CUT := 0.45           # letting go of jump while rising keeps this much of the upward speed
+const WATER_LAYER := 4           # physics layer of the sea surface: only Bubble Mochi stands on it
 const COYOTE := 0.12            # a jump still counts this long after walking off an edge
 const GLIDE_FALL := -0.7        # Puffy Mochi's slowest fall while holding jump
 const GLIDE_SPEED := 3.3
@@ -222,8 +225,18 @@ func _build_hats() -> void:
 		p.position = Vector3(0.0, part[4], 0.0)
 		sketch.add_child(p)
 	sketch.rotation.z = -0.25
-	for k in {"puffy": puffy, "stone": stone, "sketch": sketch}:
-		var h: Node3D = {"puffy": puffy, "stone": stone, "sketch": sketch}[k]
+	var bubble := Node3D.new()  # two little soap bubbles floating over the head
+	for b in [[0.07, 0.04, 0.6], [0.045, -0.07, 0.68]]:
+		var s := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = b[0]
+		sm.height = b[0] * 2.0
+		s.mesh = sm
+		s.material_override = _toon(Color("dff3ff"), 0.5, 0.005)
+		s.position = Vector3(b[1], b[2], 0.0)
+		bubble.add_child(s)
+	for k in {"puffy": puffy, "stone": stone, "sketch": sketch, "bubble": bubble}:
+		var h: Node3D = {"puffy": puffy, "stone": stone, "sketch": sketch, "bubble": bubble}[k]
 		h.visible = false
 		bob.add_child(h)
 		_hats[k] = h
@@ -283,6 +296,7 @@ func set_power(p: String) -> void:
 	power = p
 	pounding = false
 	_apply_body()
+	collision_mask = 1 | (WATER_LAYER if p == "bubble" else 0)
 	_spin = 0.0  # a little twirl as the new flavor kicks in
 	power_changed.emit(p)
 
@@ -455,6 +469,7 @@ func step(delta: float, input: Vector2, yaw: float, sprint := false, jump_held :
 		if pounding:
 			_pound_t += delta
 			velocity.y = 1.2 if _pound_t < 0.12 else -15.0  # a tiny hang in the air, then SLAM
+	var fall_speed := -velocity.y  # (for Bubble Mochi's bounce)
 	move_and_slide()
 	var on_floor := is_on_floor()
 	if on_floor:
@@ -462,6 +477,10 @@ func step(delta: float, input: Vector2, yaw: float, sprint := false, jump_held :
 			land = 0.0
 			jumps = 0
 			landed.emit()
+			if power == "bubble" and fall_speed > 5.0:  # boing! springs back up, a bit lower each time
+				velocity.y = fall_speed * 0.62
+				jumps = 1
+				bounced.emit()
 			if _buffer > 0.0:  # the jump pressed a moment too early happens now
 				_buffer = 0.0
 				jump()

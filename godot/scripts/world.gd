@@ -13,17 +13,22 @@ signal star_poofed
 signal bloom_revealed(id: String)
 signal race_update(text: String)
 signal friend_said(title: String, text: String, seconds: float)
+signal tide_changed(phase: String)  # "high", "falling", "low", "soon" (rising in a moment), "rising"
 
 const REACH := 1.7             # how close something edible must be for the mochi to start inhaling it
 const PAPER := Color("f8f6f0")
 const WHITE := Color.WHITE
 const ISLAND_DEPTH := 0.9
-const PAGES := {"meadow": "The Meadow", "village": "The Village"}
-const PAGE_STARS := {"meadow": 12, "village": 12}   # Bloom Stars hidden on each page
+const PAGES := {"meadow": "The Meadow", "village": "The Village", "seaside": "Seaside"}
+const PAGE_STARS := {"meadow": 12, "village": 12, "seaside": 12}   # Bloom Stars hidden on each page
 const STARS_TO_OPEN := 5        # Bloom Stars from a chapter that open the path to the next one
 const SURFACES := {"d9b38c": "wood", "e6c79c": "wood", "c99a6a": "wood", "f6e3b4": "sand"}  # by paper colour
 const PAGE_SURFACE := {"village": "stone", "seaside": "sand"}  # what the ground is, page by page
 const RACE_TIME := 30.0
+const TIDE_HIGH := 0.2          # sea level at high tide (Seaside)
+const TIDE_LOW := -1.2
+const TIDE_HOLD := 22.0         # seconds the tide stays high, then low
+const TIDE_TURN := 4.0          # seconds it takes to rise or fall
 const SKETCH_LENGTH := 5.0      # a Sketch Mochi bridge (metres)
 const SKETCH_LIFE := 6.0        # seconds before it is rubbed out
 
@@ -36,6 +41,10 @@ var race := {"on": false, "next": 0, "t": 0.0, "hoops": [], "friend": "", "star"
 var flutters: Array[Dictionary] = []     # butterflies
 var sketches: Array = []                 # Sketch Mochi bridges standing right now
 var spinners: Array = []                 # windmill blades and the like, turning slowly
+var tide := {}                           # Seaside: {t, level, phase}; empty on other pages
+var sea: Node3D                          # the sea surface you see
+var sea_body: StaticBody3D               # ...and the layer Bubble Mochi walks on
+var floats: Array = []                   # things riding the tide (the buoy and its star)
 var _keep: Array = []                    # [x, z, radius] spots props must stay clear of
 var reveals := {}                        # editor pages: hidden star id -> "drops" / "smudgies" (what reveals it)
 var drops: Array[Dictionary] = []        # the paint drops (for the HUD)
@@ -70,6 +79,8 @@ func load_level(name: String, eaten: Array = []) -> void:
 	flutters.clear()
 	sketches.clear()
 	spinners.clear()
+	tide = {}
+	floats.clear()
 	_keep.clear()
 	reveals.clear()
 	race = {"on": false, "next": 0, "t": 0.0, "hoops": [], "friend": "", "star": "", "time": RACE_TIME}
@@ -81,6 +92,8 @@ func load_level(name: String, eaten: Array = []) -> void:
 		_build_home()
 	elif name == "worldmap":
 		_build_worldmap()
+	elif name == "seaside":
+		_build_seaside()
 	elif name == "village":
 		_build_village()
 	elif name == "meadow":
@@ -452,6 +465,9 @@ func power_doodle(power: String, pos: Vector3) -> void:
 	if power == "puffy":
 		for b in [[0.17, 0.0, 0.0], [0.13, 0.17, -0.02], [0.13, -0.17, 0.0], [0.11, 0.05, 0.12]]:
 			node.add_child(colored(_sphere(b[0]), "ffffff", Vector3(b[1], b[2], 0.0), 0.02))
+	elif power == "bubble":  # a soap bubble with a shine
+		node.add_child(colored(_sphere(0.22, 14, 10), "bfe6ff", Vector3.ZERO, 0.015, 0.7))
+		node.add_child(colored(_sphere(0.05, 8, 5), "ffffff", Vector3(-0.08, 0.1, 0.17), 0.0, 0.0))
 	elif power == "sketch":  # a little pencil, leaning
 		var pen := Node3D.new()
 		pen.add_child(colored(_cyl(0.08, 0.08, 0.36, 6), "ffd86b", Vector3.ZERO, 0.02, 0.1))
@@ -863,6 +879,11 @@ func item(id: String, pos: Vector3, color: String) -> void:
 	elif id.begins_with("letter"):  # an envelope with a heart seal
 		node.add_child(colored(_box(0.42, 0.28, 0.05), color, Vector3.ZERO, 0.02, 0.1))
 		node.add_child(colored(_sphere(0.06, 8, 5), "f2788e", Vector3(0, 0, 0.04), 0.0, 0.0))
+	elif id.begins_with("shell"):  # a little spiral shell
+		var sh := colored(_cyl(0.0, 0.2, 0.3, 7), color, Vector3.ZERO, 0.02, 0.2)
+		sh.rotation.z = 1.2
+		node.add_child(sh)
+		node.add_child(colored(_sphere(0.1, 8, 5), color, Vector3(0.12, -0.04, 0), 0.02, 0.2))
 	elif id == "spark":  # a little glowing light
 		node.add_child(colored(_sphere(0.16, 12, 8), color, Vector3.ZERO, 0.02, 0.6))
 		node.add_child(colored(_star_mesh(0.3, 0.1, 0.03), "fff6c8", Vector3.ZERO, 0.0, 0.5))
@@ -908,6 +929,24 @@ func friend(id: String, pos: Vector3, color: String, title: String, lines: Dicti
 			g.add_child(doodle(_box(0.62, 0.5, 0.5), color, Vector3(0, 0.72, 0), 0.025, true))
 			var flag := doodle(_box(0.05, 0.3, 0.12), "f2788e", Vector3(0.34, 0.85, -0.1), 0.01, true)
 			g.add_child(flag)
+		"crab":  # a round crab with two little claws up
+			var shell := doodle(_sphere(0.45, 14, 8), color, Vector3(0, 0.4, 0), 0.03)
+			shell.scale = Vector3(1.2, 0.75, 0.9)
+			g.add_child(shell)
+			for sx in [-1.0, 1.0]:
+				g.add_child(doodle(_sphere(0.15, 8, 5), color, Vector3(sx * 0.62, 0.75, 0.15), 0.02))
+				for k in 3:
+					g.add_child(colored(_cyl(0.025, 0.03, 0.3, 5), "c86b6b", Vector3(sx * (0.3 + k * 0.14), 0.12, -0.05), 0.0, 0.0))
+		"gull":  # a round seagull with a yellow beak
+			var body := doodle(_sphere(0.4, 14, 8), color, Vector3(0, 0.55, 0), 0.03)
+			body.scale = Vector3(0.9, 0.95, 1.1)
+			g.add_child(body)
+			g.add_child(doodle(_cyl(0.0, 0.1, 0.24, 6), "ffd86b", Vector3(0, 0.6, 0.45), 0.015))
+			g.get_child(-1).rotation.x = PI / 2.0
+			for sx in [-1.0, 1.0]:
+				var wing := doodle(_sphere(0.3, 10, 6), "d6dce8", Vector3(sx * 0.38, 0.6, -0.05), 0.02)
+				wing.scale = Vector3(0.35, 0.7, 1.0)
+				g.add_child(wing)
 		"plane":  # a paper plane resting nose-down
 			var wing := doodle(_cyl(0.0, 0.55, 0.9, 3), color, Vector3(0, 0.55, 0), 0.025)
 			wing.scale = Vector3(1.0, 1.0, 0.35)
@@ -1381,6 +1420,288 @@ func _cage_star(id: String, pos: Vector3, switch_pos: Vector3) -> void:
 	add_child(cage)
 	bloom(id, pos)
 	switch(switch_pos, cage, pos.y - 2.3)
+
+
+# ================================================================== Chapter 3: Seaside
+## Seaside: a sandy beach in the south, the sea to the north with the Lighthouse Isle, a shipwreck reef and a
+## coral cave. The tide turns every ~25 s: low tide (sea at TIDE_LOW) uncovers sand bars, reef rocks and the
+## cave floor; high tide (TIDE_HIGH) floods them. Power: Bubble Mochi walks on the water and bounces.
+func _build_seaside() -> void:
+	for c in clouds:
+		c.position.y += 3.0
+	var beach := island(0, 17, 64, 26, 0.0, "f6e3b4")  # z 4 .. 30
+	_paint(beach.get_child(1), true)
+	checkpoint(Vector3(0, 0, 25))
+	# the sea: a surface you see, and a solid layer that only Bubble Mochi stands on; both follow the tide
+	sea = colored(_box(64, 0.12, 34), "8fd0f5", Vector3(0, TIDE_HIGH - 0.06, -13), 0.0, 0.18)
+	add_child(sea)
+	var foam := colored(_box(64, 0.14, 0.6), "ffffff", Vector3(0, 0.01, 17.0), 0.0, 0.3)  # where the sea meets the sand
+	sea.add_child(foam)
+	sea_body = StaticBody3D.new()
+	sea_body.collision_layer = Mochi.WATER_LAYER
+	sea_body.collision_mask = 0
+	sea_body.set_meta("surface", "water")
+	var scs := CollisionShape3D.new()
+	scs.shape = _box_shape(Vector3(64, 0.2, 34))
+	sea_body.add_child(scs)
+	sea_body.position = Vector3(0, TIDE_HIGH - 0.1, -13)
+	add_child(sea_body)
+	tide = {"t": 0.0, "level": TIDE_HIGH, "phase": "high"}
+
+	# --- the Beach: Bubble pedestal, Clack the crab, Gale the gull, the buoy
+	power_doodle("bubble", Vector3(-4, 0, 9))
+	_signpost(Vector3(-1.2, 0, 6.4), "Walk on water?")
+	var buoy := island(0, -5, 2.4, 2.4, TIDE_HIGH + 0.3, "f2788e", 0.5)  # rides the tide
+	_paint(buoy.get_child(1), true)
+	floats.append({"node": buoy, "over": 0.3 - 0.25})
+	bloom("b_buoy", Vector3(0, TIDE_HIGH + 0.3, -5))
+	floats.append({"node": edibles[-1].node, "over": 0.3 + 0.9, "edible": edibles[-1]})
+	friend("clack", Vector3(-3, 0, 15), "f2788e", "Clack", {
+		"ask": "Click clack! My three spare shells washed away: one on the big dune, one on the old shipwreck, one in the rock pools.",
+		"thanks": "My shells! Click-clack-hooray! This Bloom Star washed up for you.",
+		"done": "Sideways is the best way."}, ["shell1", "shell2", "shell3"], "crab")
+	friend("gale", Vector3(9, 0, 13), "ffffff", "Gale", {
+		"ask": "Race me over the waves! Six hoops, out past the sand bar and back. Low tide helps... GO!",
+		"thanks": "Squawk! You're quicker than the wind! Here's your Bloom Star.",
+		"done": "Smell that sea breeze!",
+		"fail": "Squaaawk! Too slow! Ask me again."}, [], "gull")
+	race.friend = "gale"
+	race.star = "b_gale"
+	race.time = 34.0
+	friends.gale.star = "b_gale"
+	for h in [[6, 18], [13, 10], [17, 4], [18, -4], [12, 1.5], [4, 8]]:
+		hoop(Vector3(h[0], 0, h[1]))
+	bloom("b_gale", Vector3(10.3, 0, 11.4), true)
+
+	# --- the Sand Bar: a low-tide path out to the Lighthouse Isle (flooded at high tide)
+	for z in range(3, -14, -3):
+		var bar := island(18, z - 1.5, 3.2, 3.2, -0.6, "f6e3b4", 0.6)
+		_paint(bar.get_child(1), true)
+	bloom("b_sandbar", Vector3(18, -0.6, -6))
+	# the Lighthouse Isle and its spiral ledges up to the lamp
+	var lc := Vector3(18, 0, -19)
+	var isle := island(lc.x, lc.z, 9, 8, 1.0, "e3e6ef", 1.6)
+	_paint(isle.get_child(1), true)
+	for s in [[18, -14.4, 0.0], [18, -13.4, -0.3]]:  # rock steps up from the sand bar
+		var step := island(s[0], s[1], 2.2, 1.2, s[2] + 0.5, "cfd3e0", 1.4)
+		_paint(step.get_child(1), true)
+	var tower := Node3D.new()
+	for k in 5:
+		tower.add_child(doodle(_cyl(1.25 - k * 0.06, 1.3 - k * 0.06, 1.8, 14), "e5485e" if k % 2 == 0 else "ffffff", Vector3(0, 0.9 + k * 1.8, 0), 0.04))
+	tower.add_child(doodle(_cyl(0.9, 0.9, 0.9, 12), "ffe07a", Vector3(0, 9.45, 0), 0.03))
+	tower.add_child(doodle(_cyl(0.0, 1.2, 1.0, 12), "e5485e", Vector3(0, 10.4, 0), 0.03))
+	place(tower, lc + Vector3(0, 1.0, 0), 1.0, 2.0, 0.0, _cyl_shape(1.25, 9.0), Vector3(0, 4.5, 0))
+	for k in 9:
+		var a := k * 0.8 + 1.6
+		var ledge := island(lc.x + cos(a) * 2.1, lc.z + sin(a) * 2.1, 1.5, 1.5, 1.0 + 0.9 * (k + 1), "d9b38c", 0.25)
+		_paint(ledge.get_child(1), true)
+	var top := island(lc.x, lc.z, 4.2, 4.2, 10.0, "d9b38c", 0.25)  # the lamp gallery, on top of the tower
+	_paint(top.get_child(1), true)
+	bloom("b_lighthouse", lc + Vector3(1.5, 10.0, 1.5))
+	checkpoint(lc + Vector3(-3, 1.0, 2.5))
+	sticker("s1", lc + Vector3(3.5, 1.0, -3))
+
+	# --- the Shipwreck Reef: stepping rocks at low tide, a tilted hull with a star inside
+	for r in [[-12, 2.0], [-13.5, -0.5], [-14, -3.2], [-15.5, -5.5], [-16, -8.2]]:
+		var rock_top := island(r[0], r[1], 1.6, 1.6, -0.35, "cfd3e0", 0.8)
+		_paint(rock_top.get_child(1), true)
+	var wc := Vector3(-17, 0, -13)
+	var reef := island(wc.x, wc.z, 9, 6, 0.4, "e3d8f2", 1.2)
+	_paint(reef.get_child(1), true)
+	var hull := Node3D.new()
+	hull.add_child(doodle(_box(6.0, 0.25, 2.6), "a8755a", Vector3(0, 0.15, 0), 0.03, true))   # the deck
+	for side in [-1.0, 1.0]:
+		hull.add_child(doodle(_box(6.0, 1.2, 0.2), "8a5a44", Vector3(0, 0.7, side * 1.3), 0.03, true))
+	hull.add_child(doodle(_cyl(0.1, 0.12, 3.6, 8), "c99a6a", Vector3(0.8, 2.0, 0), 0.02))  # broken mast
+	var sail := doodle(_box(0.05, 1.6, 1.4), "fffaf0", Vector3(0.9, 2.6, 0.5), 0.02, true)
+	sail.rotation.x = 0.4
+	hull.add_child(sail)
+	hull.rotation.z = 0.08
+	place(hull, wc + Vector3(0, 0.4, 0), 1.0, 3.0, 0.3)
+	for side in [-1.0, 1.0]:  # solid hull walls (so the star sits inside the wreck)
+		var wall := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		cs.shape = _box_shape(Vector3(6.0, 1.2, 0.2))
+		wall.add_child(cs)
+		wall.position = wc + Vector3(0, 1.1, 0) + Vector3(0, 0, side * 1.3).rotated(Vector3.UP, 0.3)
+		wall.rotation.y = 0.3
+		add_child(wall)
+	bloom("b_wreck", wc + Vector3(-1.5, 0.6, 0.4))
+	item("shell2", wc + Vector3(1.8, 0.6, -0.2), "ffd1dc")
+	sticker("s2", wc + Vector3(4, 0.4, -2.5))
+	# --- the Coral Cave: under a coral arch north of the wreck; its floor is dry only at low tide
+	var cc := Vector3(-5, 0, -24)
+	var cave_floor := island(cc.x, cc.z, 5, 4, -0.8, "f6e3b4", 0.4)
+	_paint(cave_floor.get_child(1), true)
+	for side in [-1.0, 1.0]:
+		var pillar := island(cc.x + side * 2.8, cc.z, 1.2, 3.6, 1.6, "f2a7b8", 2.6)
+		_paint(pillar.get_child(1), true)
+	var arch := island(cc.x, cc.z, 6.8, 3.6, 2.4, "f2a7b8", 0.8)
+	_paint(arch.get_child(1), true)
+	for r in [[-9.5, -16.5], [-8, -19.5], [-6.5, -21.5]]:  # more reef rocks from the wreck to the cave
+		var cr := island(r[0], r[1], 1.6, 1.6, -0.35, "cfd3e0", 0.8)
+		_paint(cr.get_child(1), true)
+	bloom("b_cave", cc + Vector3(0, -0.8, 0))
+	for k in 6:  # coral doodles
+		var co := doodle(_cyl(0.0, 0.25, rng.randf_range(0.6, 1.2), 5), _pick(["f2788e", "ffb38a", "b9a2ee"]),
+			cc + Vector3(rng.randf_range(-2.2, 2.2), -0.4, rng.randf_range(-1.5, 1.5)), 0.015)
+		add_child(co)
+
+	# --- the Big Dune (south-west): sandy terraces to the top
+	var dc := Vector3(-22, 0, 19)
+	for k in 6:
+		var s := 10.0 - 1.6 * k
+		var d := island(dc.x, dc.z, s, s * 0.9, 0.5 * (k + 1), "f2d9a0", 0.5 * (k + 1))
+		_paint(d.get_child(1), true)
+	bloom("b_dune", dc + Vector3(0, 3.0, 0))
+	item("shell1", dc + Vector3(2.5, 1.5, 2.5), "ffd1dc")
+
+	# --- the Rock Pools (south-east): rocks around little pools; a star hides behind the biggest rock
+	var pc := Vector3(24, 0, 18)
+	for p in [[-2, 0, 1.6], [2, 2, 1.2], [1, -2.5, 1.3]]:
+		var pool := colored(_cyl(p[2], p[2], 0.05, 16), "8fd0f5", pc + Vector3(p[0], 0.03, p[1]), 0.02, 0.2)
+		add_child(pool)
+	for r in [[-4.5, -1, 1.6], [4.5, -1.5, 1.4], [0, 4.5, 1.8], [-1, -5, 1.2], [5.5, 3.5, 2.2]]:
+		place(rock(), pc + Vector3(r[0], 0, r[1]), r[2] * 1.4, 1.2, INF, _cyl_shape(0.5, 1.0), Vector3(0, 0.4, 0))
+	var big := Node3D.new()
+	var boulder := doodle(_sphere(1.6, 10, 6), "cfd3e0", Vector3(0, 1.1, 0), 0.04)
+	boulder.scale = Vector3(1.4, 0.9, 1.0)
+	big.add_child(boulder)
+	place(big, pc + Vector3(3, 0, -5), 1.0, 2.5, 0.0, _cyl_shape(1.9, 2.2), Vector3(0, 1.1, 0))
+	bloom("b_pool", pc + Vector3(3.2, 0, -7.6))  # tucked behind the boulder, against the sea
+	item("shell3", pc + Vector3(1, 0, -2.5), "ffd1dc")
+
+	# --- the Sandcastle (beach centre): a star in a castle cage; a pebble doodle stomps the switch
+	_cage_star("b_castle", Vector3(-10, 0, 20), Vector3(-10, 0, 24.3))
+	for t in [[-11.3, 18.7], [-8.7, 18.7], [-11.3, 21.3], [-8.7, 21.3]]:  # castle towers around the cage
+		var tw := Node3D.new()
+		tw.add_child(doodle(_cyl(0.45, 0.55, 1.4, 8), "f2d9a0", Vector3(0, 0.7, 0), 0.03))
+		tw.add_child(doodle(_cyl(0.0, 0.5, 0.5, 8), "e88f8f", Vector3(0, 1.65, 0), 0.02))
+		place(tw, Vector3(t[0], 0, t[1]), 1.0, 0.8, 0.0, _cyl_shape(0.5, 1.4), Vector3(0, 0.7, 0))
+	power_doodle("stone", Vector3(-14, 0, 24))
+
+	# --- the Cove (east beach): a Smudgie nest in the drift weed
+	var nc := Vector3(8, 0, 21)
+	var weed := colored(_cyl(4.0, 4.0, 0.04, 24), "4a4552", nc + Vector3(0, 0.02, 0), 0.0, 0.0)
+	weed.scale = Vector3(1.0, 1.0, 0.7)
+	add_child(weed)
+	for i in 4:
+		var a := i / 4.0 * TAU
+		smudgie("n%d" % i, nc + Vector3(cos(a) * 1.8, 0, sin(a) * 1.2), 2.4)
+		nest.append("n%d" % i)
+	bloom("b_nest", nc, true)
+
+	# --- paint drops along the shore, the bar, the isles
+	var drop_spots := [
+		[-6, 0, 22, "ff9ab5"], [4, 0, 26, "ffd86b"], [14, 0, 24, "8fd0f5"], [-16, 0, 10, "b9a2ee"],
+		[26, 0, 8, "a8d8a0"], [18, -0.6, -1.5, "ffb38a"], [16, 1.0, -22, "f5c35b"], [-15, -0.35, -5.5, "e88f8f"],
+		[-20, 0.4, -11, "8fd0f5"], [-22, 2.0, 19, "ff9ab5"], [2, 0, 12, "9fd0b4"], [28, 0, 26, "ffd86b"],
+	]
+	for i in drop_spots.size():
+		var dd: Array = drop_spots[i]
+		paint_drop("d%d" % (i + 1), Vector3(dd[0], dd[1], dd[2]), dd[3])
+	bloom("b_drops", Vector3(0, 0, 18), true)
+	sticker("s3", Vector3(-30, 0, 28.5))
+	sticker("s4", Vector3(30.5, 0, 12))
+	sticker("s5", cc + Vector3(1.5, 2.4, 0))  # on top of the coral arch
+
+	# --- dressing: palms, umbrellas, shells, paths and signs
+	_keep = [
+		[-4, 9, 1.5], [0, 6, 3], [-3, 15, 2.5], [9, 13, 2.5], [-22, 19, 6.5], [24, 18, 7.5], [-10, 21, 3.5],
+		[8, 21, 5], [-14, 24, 1.5], [18, 2, 3], [0, 18, 2],
+	]
+	_stone_path([Vector3(0, 0, 24), Vector3(-2, 0, 17), Vector3(-1, 0, 8)])
+	_stone_path([Vector3(1, 0, 22), Vector3(10, 0, 16), Vector3(17, 0, 6.5)])
+	_stone_path([Vector3(-2, 0, 20), Vector3(-14, 0, 14), Vector3(-12, 0, 5)])
+	for s in [[Vector3(15.5, 0, 6.5), "Sand Bar  ·  Lighthouse"], [Vector3(-9.5, 0, 5.8), "Shipwreck Reef"],
+			[Vector3(-16, 0, 14), "Big Dune"], [Vector3(19, 0, 13.5), "Rock Pools"]]:
+		_signpost(s[0], s[1])
+	for p in [[-28, 26], [-26, 10], [-12, 27], [14, 28], [28, 22], [29, 6], [-29, 5], [6, 6.5], [-18, 27.5], [22, 27]]:
+		_palm(Vector3(p[0], 0, p[1]))
+		_keep.append([p[0], p[1], 2.0])
+	for u in [[3, 21, "f2788e"], [-6, 26, "8fd0f5"], [20, 24, "ffd86b"]]:
+		_umbrella(Vector3(u[0], 0, u[1]), u[2])
+		_keep.append([u[0], u[1], 2.0])
+	_sprinkle(func(p): place(rock(), p, rng.randf_range(0.7, 1.3), 0.8, INF, _cyl_shape(0.4, 0.5), Vector3(0, 0.25, 0)), 8, 1.2)
+	for k in 14:  # little shells and starfish on the sand (decoration)
+		var at := Vector3(rng.randf_range(-28, 28), 0.03, rng.randf_range(6, 28))
+		add_child(colored(_star_mesh(0.14, 0.07, 0.03), _pick(["ffb38a", "f2788e", "ffd1dc"]), at, 0.008, 0.1))
+	for k in 5:
+		_butterfly(Vector3(rng.randf_range(-20, 20), 0, rng.randf_range(10, 26)))
+
+
+## A palm tree: a leaning trunk of stacked segments and a crown of fronds.
+func _palm(pos: Vector3) -> void:
+	var g := Node3D.new()
+	var lean := rng.randf_range(0.08, 0.18)
+	var top := Vector3.ZERO
+	for k in 6:
+		top = Vector3(lean * k * k * 0.12, 0.45 + k * 0.6, 0)
+		g.add_child(doodle(_cyl(0.14 - k * 0.01, 0.17 - k * 0.01, 0.62, 8), "c99a6a", top, 0.02))
+	for k in 6:
+		var a := k / 6.0 * TAU
+		var frond := doodle(_sphere(0.9, 10, 5), "8fc98a", top + Vector3(cos(a) * 0.8, 0.25, sin(a) * 0.8), 0.025)
+		frond.scale = Vector3(1.0, 0.18, 0.4)
+		frond.rotation = Vector3(0, -a, -0.35)
+		g.add_child(frond)
+	for k in 3:
+		g.add_child(doodle(_sphere(0.14, 8, 5), "a8755a", top + Vector3(cos(k * 2.1) * 0.2, 0.05, sin(k * 2.1) * 0.2), 0.012))
+	place(g, pos, rng.randf_range(0.9, 1.2), 1.6, INF, _cyl_shape(0.25, 3.6), Vector3(0, 1.8, 0))
+
+
+func _umbrella(pos: Vector3, color: String) -> void:
+	var g := Node3D.new()
+	g.add_child(doodle(_cyl(0.04, 0.04, 2.0, 6), "fffaf0", Vector3(0, 1.0, 0), 0.015))
+	g.add_child(doodle(_cyl(0.0, 1.3, 0.45, 8), color, Vector3(0, 2.1, 0), 0.03))
+	g.add_child(doodle(_box(1.6, 0.03, 0.9), "fffaf0", Vector3(0.9, 0.02, 0.4), 0.015, true))  # a towel
+	place(g, pos, 1.0, 1.8, INF, _cyl_shape(0.1, 2.0), Vector3(0, 1.0, 0))
+
+
+## The tide: high and low tides alternate with a short turn between. Moves the sea, its solid layer for
+## Bubble Mochi, and anything floating on it (the buoy and its star).
+func _tick_tide(delta: float) -> void:
+	if tide.is_empty():
+		return
+	tide.t += delta
+	var period := TIDE_HOLD * 2.0 + TIDE_TURN * 2.0
+	var t: float = fmod(tide.t, period)
+	var phase := "high"
+	var k := 1.0
+	if t < TIDE_HOLD:
+		phase = "high"
+		k = 1.0
+	elif t < TIDE_HOLD + TIDE_TURN:
+		phase = "falling"
+		k = 1.0 - smoothstep(0.0, 1.0, (t - TIDE_HOLD) / TIDE_TURN)
+	elif t < TIDE_HOLD * 2.0 + TIDE_TURN:
+		phase = "low"
+		k = 0.0
+	else:
+		phase = "rising"
+		k = smoothstep(0.0, 1.0, (t - TIDE_HOLD * 2.0 - TIDE_TURN) / TIDE_TURN)
+	var warn: bool = phase == "low" and t > TIDE_HOLD * 2.0 + TIDE_TURN - 4.0
+	if phase != tide.phase or (warn and not tide.get("warned", false)):
+		tide.warned = warn
+		if phase != tide.phase:
+			tide.phase = phase
+			tide.warned = false
+		tide_changed.emit("soon" if warn else phase)
+	tide.level = lerpf(TIDE_LOW, TIDE_HIGH, k)
+	sea.position.y = tide.level - 0.06
+	sea_body.position.y = tide.level - 0.1
+	for f in floats:
+		if f.has("edible"):
+			var e: Dictionary = f.edible
+			if e.got or e.sucking:
+				continue
+			e.home.y = tide.level + f.over
+		else:
+			f.node.position.y = tide.level + f.over
+
+
+## Under the sea surface (and not a bubble)? The mochi is splashed out and redrawn.
+func in_sea(pos: Vector3) -> bool:
+	return not tide.is_empty() and pos.z < 4.0 and pos.y < tide.level - 0.3
 
 
 # ================================================================== pages made in the level editor (editor/)
@@ -2122,7 +2443,7 @@ func _paint(mi: GeometryInstance3D, instant := false, delay := 0.0) -> void:
 	if instant or not is_inside_tree():
 		mi.set_instance_shader_parameter("albedo", target)
 		return
-	var tw := create_tween()
+	var tw := mi.create_tween()  # bound to the mesh, so it stops if the page is left mid-ripple
 	tw.tween_interval(delay)  # ripples outward
 	tw.tween_method(func(c: Color):
 		if is_instance_valid(mi):
@@ -2194,6 +2515,7 @@ func _poof(node: Node3D) -> void:
 func tick(delta: float, player_pos: Vector3) -> void:
 	_update_smudgies(delta, player_pos)
 	_tick_race(delta, player_pos)
+	_tick_tide(delta)
 	_check_tasks()
 	for i in range(stars.size() - 1, -1, -1):
 		var s: Dictionary = stars[i]
