@@ -74,7 +74,9 @@ Start with **Puffy** and **Stone** in the first chapter; add one or two per chap
   things (eat them to carry them back) or set challenges. Later they can move to the Home Page.
 - **Home Page:** your hub page. Decorate with earned stickers, re-dress your mochi in the creator, see friends, open the book.
 
-**The Meadow (built):** a 64 x 60 open page ([overview](world_concept/meadow_open.png)). Its 12 Bloom Stars:
+**The Meadow (built):** a 64 x 60 open page ([overview](world_concept/meadow_open.png)). Stepping-stone paths with
+signposts lead from the start to every landmark; between them are groves, bushes, flower beds, a pond, a picnic,
+fences, hedges along the edges and butterflies. Its 12 Bloom Stars:
 
 | Star | How |
 |---|---|

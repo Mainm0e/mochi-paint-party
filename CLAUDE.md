@@ -80,7 +80,10 @@ Meadow 1 run as the "Ink Trail" off the north edge; 14 drops, 5 stickers,
 Smudgies, checkpoints). Sprint/stamina, double jump,
 big-mouth inhale + gulp, 6 emotes, music + SFX, gamepad. Verified by the autotest, **not yet hand-playtested**.
 
-Next candidates: hand playtest + tuning; the Meadow feels sparse between landmarks (more props, paths, a pond);
+The Meadow is dressed by `_dress_meadow()` (stone paths to each landmark, signposts, pond, picnic, fences,
+edge hedges, groves/bushes/rocks/flower beds placed with `_clear()` keep-outs, butterflies).
+
+Next candidates: hand playtest + tuning;
 camera collision (clips through props); spit bounce; the Village page /
 more chapters; the Eraser; friends moving to the Home Page; decorating it with stickers; a Windows build.
 

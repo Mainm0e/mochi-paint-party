@@ -29,6 +29,8 @@ var friends := {}                        # doodle friends on this page, by id
 var bouncers: Array[Dictionary] = []     # bouncy mushroom caps
 var nest: Array = []                     # Smudgie ids whose cleanup earns b_nest
 var race := {"on": false, "next": 0, "t": 0.0, "hoops": []}
+var flutters: Array[Dictionary] = []     # butterflies
+var _keep: Array = []                    # [x, z, radius] spots props must stay clear of
 var drops: Array[Dictionary] = []        # the paint drops (for the HUD)
 var smudgies: Array[Dictionary] = []
 var checkpoints: Array[Dictionary] = []
@@ -57,6 +59,8 @@ func load_level(name: String, eaten: Array = []) -> void:
 	for list in [edibles, drops, smudgies, checkpoints, zones, paintables, clouds, switches, stars, bouncers, nest]:
 		list.clear()
 	friends.clear()
+	flutters.clear()
+	_keep.clear()
 	race = {"on": false, "next": 0, "t": 0.0, "hoops": []}
 	active_checkpoint = 0
 	level = name
@@ -701,7 +705,8 @@ func _build_meadow() -> void:
 	bloom("b_drops", Vector3(0, 0, 10), true)
 
 	_meadow_trail(-34.0)
-	sticker("s4", Vector3(-30, 0, 28))
+	sticker("s4", Vector3(-28.5, 0, 26.5))
+	_dress_meadow()
 
 
 ## The Ink Trail: the original Meadow 1 run, leaving the north edge of the meadow at z = -30.
@@ -942,6 +947,210 @@ func _check_tasks() -> void:
 			reveal_bloom("b_nest")
 	if level == "meadow" and drops_left() == 0 and not bloom_shown("b_drops"):
 		reveal_bloom("b_drops")
+
+
+# ================================================================== dressing the open Meadow
+## Fill the spaces between the Meadow's landmarks: stepping-stone paths that lead to each one, signposts,
+## a pond, hedges along the edges, groves, flower beds, fences, a picnic and butterflies. Every prop is
+## placed with `_clear()` so nothing lands on a star, a friend, a hoop, a path or a landmark.
+func _dress_meadow() -> void:
+	_keep = [
+		[-16, 2, 4.0], [16, -10, 7.5], [27, -10, 2.0], [-14, -16, 4.6], [4, -20, 2.4], [6.8, -18, 1.4],
+		[-4, -5, 2.0], [-4, -9.5, 2.4], [22, 17, 2.8], [26.5, 14, 2.8], [19.8, 19.4, 1.6], [0, -30, 4.5],
+		[-24, 22, 5.0], [5, 24, 2.6],
+	]
+	# paths from the start flag out to every landmark
+	var start := Vector3(0, 0, 21)
+	_stone_path([start, Vector3(-5, 0, 15), Vector3(-11, 0, 8), Vector3(-14.5, 0, 5.5)])         # giant tree
+	_stone_path([Vector3(-11, 0, 8), Vector3(-18, 0, 14), Vector3(-20.5, 0, 19)])                   # pond
+	_stone_path([start, Vector3(3, 0, 12), Vector3(5, 0, 0), Vector3(8.5, 0, -6)])                  # hill
+	_stone_path([Vector3(5, 0, 0), Vector3(-1, 0, -12), Vector3(-1.5, 0, -25), Vector3(0, 0, -29.5)])  # Ink Trail
+	_stone_path([Vector3(-1, 0, -12), Vector3(-6, 0, -15), Vector3(-10, 0, -15.5)])                 # nest
+	_stone_path([start, Vector3(10, 0, 20), Vector3(18, 0, 19.5)])                                   # village
+	for s in [[Vector3(-4.2, 0, 16.5), "Giant Tree"], [Vector3(-12.5, 0, 10.5), "Pond"],
+			[Vector3(4.6, 0, 11.5), "Hill"], [Vector3(-0.6, 0, -10.5), "Ink Trail"],
+			[Vector3(-4.5, 0, -13.6), "Ink Puddle"], [Vector3(9.5, 0, 21.5), "Village"]]:
+		_signpost(s[0], s[1])
+	_pond(Vector3(-24, 0, 22))
+	# a picnic by the start: a blanket, a basket and a pie
+	var picnic := Node3D.new()
+	picnic.add_child(doodle(_box(2.2, 0.03, 1.6), "ffb3c4", Vector3(0, 0.015, 0), 0.02, true))
+	picnic.add_child(doodle(_box(0.6, 0.35, 0.4), "d9b38c", Vector3(-0.5, 0.2, 0.2), 0.02, true))
+	picnic.add_child(doodle(_cyl(0.3, 0.28, 0.12, 14), "f5c35b", Vector3(0.5, 0.06, -0.2), 0.02))
+	place(picnic, Vector3(5, 0, 24), 1.0, 0.0, 0.2, _box_shape(Vector3(0.6, 0.35, 0.4)), Vector3(-0.5, 0.2, 0.2))
+	# a garden fence around the village houses, and one along the pond
+	_fence(Vector3(17.5, 0, 22.5), Vector3(29, 0, 22.5))
+	_fence(Vector3(29.5, 0, 22), Vector3(29.5, 0, 11))
+	_fence(Vector3(-28.5, 0, 16.5), Vector3(-19.5, 0, 16.5))
+	# hedges along the page edges (with gaps, so careless hops can still fall off the page)
+	for x in range(-30, 31, 3):
+		if absf(x) > 6.0:  # leave the trail gate open
+			_bush(Vector3(x + rng.randf_range(-0.6, 0.6), 0, -29.0))
+		if rng.randf() < 0.75:
+			_bush(Vector3(x + rng.randf_range(-0.6, 0.6), 0, 29.0))
+	for z in range(-27, 28, 3):
+		for side in [-31.0, 31.0]:
+			if rng.randf() < 0.75:
+				_bush(Vector3(side, 0, z + rng.randf_range(-0.6, 0.6)))
+	# groves, bushes, rocks, mushroom rings and flower beds in the open spaces
+	_sprinkle(func(p): _tree(p, rng.randf_range(0.9, 1.4)), 26, 2.2)
+	_sprinkle(func(p): _bush(p), 30, 1.4)
+	_sprinkle(func(p): place(rock(), p, rng.randf_range(0.8, 1.6), 0.8, INF, _cyl_shape(0.4, 0.5), Vector3(0, 0.25, 0)), 18, 1.2)
+	for k in 6:
+		_sprinkle(func(p): _scatter(mushroom, p, 0.9, 6, 0.9, 1.4), 1, 1.5)
+	for k in 10:
+		_sprinkle(func(p): _scatter(flower, p, 1.8, 14, 1.0, 1.6), 1, 2.0)
+	for k in 9:
+		_butterfly(Vector3(rng.randf_range(-26, 26), 0, rng.randf_range(-24, 26)))
+
+
+## Is `p` free for a prop of radius `r`? (on the page, off paths, stars, friends, hoops and landmarks)
+func _clear(p: Vector3, r: float) -> bool:
+	if absf(p.x) > 30.0 or absf(p.z) > 28.0:
+		return false
+	for c in _keep:
+		if Vector2(p.x - c[0], p.z - c[1]).length() < c[2] + r:
+			return false
+	var points: Array = []
+	for e in edibles:
+		points.append(e.home)
+	for id in friends:
+		points.append(friends[id].home)
+	for h in race.hoops:
+		points.append(h.position)
+	for c in checkpoints:
+		points.append(c.pos)
+	for q in points:
+		if Vector2(p.x - q.x, p.z - q.z).length() < r + 1.2:
+			return false
+	return true
+
+
+## Place `count` things where `_clear` allows, at random spots on the page.
+func _sprinkle(make: Callable, count: int, r: float) -> void:
+	var placed := 0
+	for attempt in count * 30:
+		if placed >= count:
+			return
+		var p := Vector3(rng.randf_range(-30, 30), 0, rng.randf_range(-28, 28))
+		if _clear(p, r):
+			make.call(p)
+			_keep.append([p.x, p.z, r * 0.6])
+			placed += 1
+
+
+## Flat stepping stones along a polyline, a little wobbly like a hand-drawn dotted line.
+func _stone_path(points: Array) -> void:
+	for i in points.size() - 1:
+		var a: Vector3 = points[i]
+		var b: Vector3 = points[i + 1]
+		var steps := int(a.distance_to(b) / 1.05)
+		for k in steps:
+			var p := a.lerp(b, (k + 0.5) / steps) + Vector3(rng.randf_range(-0.2, 0.2), 0, rng.randf_range(-0.2, 0.2))
+			var stone := doodle(_cyl(0.26, 0.29, 0.04, 9), "e6d2aa", p + Vector3(0, 0.02, 0), 0.008)
+			stone.scale = Vector3(rng.randf_range(0.8, 1.15), 1.0, rng.randf_range(0.75, 1.0))
+			stone.rotation.y = rng.randf() * TAU
+			add_child(stone)
+			_paint(stone, true)  # paths are always drawn in, so they lead the way even on an ink page
+			_keep.append([p.x, p.z, 0.6])
+
+
+func _signpost(pos: Vector3, text: String) -> void:
+	var g := Node3D.new()
+	g.add_child(doodle(_cyl(0.06, 0.07, 1.3, 6), "c99a6a", Vector3(0, 0.65, 0), 0.02))
+	g.add_child(doodle(_box(1.3, 0.42, 0.08), "f3d9b0", Vector3(0, 1.2, 0), 0.025, true))
+	place(g, pos, 1.0, 0.5, 0.0, _cyl_shape(0.12, 1.3), Vector3(0, 0.65, 0))
+	var label := Label3D.new()
+	label.text = text
+	label.font = _ui_font()
+	label.font_size = 64
+	label.pixel_size = 0.005
+	label.modulate = Color("1f1d24")
+	label.outline_modulate = Color("f3d9b0")
+	label.outline_size = 8
+	label.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	label.position = pos + Vector3(0, 1.22, 0)
+	add_child(label)
+	_keep.append([pos.x, pos.z, 0.8])
+
+
+## A pond with lily pads, reeds and a little dock. Flat, so the mochi just walks across the water.
+func _pond(c: Vector3) -> void:
+	var water := doodle(_cyl(4.0, 4.0, 0.04, 32), "8fd0f5", c + Vector3(0, 0.02, 0), 0.04)
+	water.scale = Vector3(1.0, 1.0, 0.8)
+	add_child(water)
+	for k in 7:
+		var a := k / 7.0 * TAU + 0.3
+		var pad := doodle(_cyl(0.42, 0.42, 0.03, 12), "8fc98a", c + Vector3(cos(a) * 2.4, 0.05, sin(a) * 1.8), 0.015)
+		add_child(pad)
+		if k % 3 == 0:
+			add_child(doodle(_sphere(0.1, 8, 5), "ff9ab5", pad.position + Vector3(0.12, 0.08, 0), 0.012))
+	for k in 12:
+		var a := rng.randf_range(2.6, 4.4)
+		var reed := doodle(_cyl(0.025, 0.035, rng.randf_range(0.7, 1.2), 5), "6fae8c",
+			c + Vector3(cos(a) * 4.0, 0.45, sin(a) * 3.2) + Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3)), 0.012)
+		add_child(reed)
+	var dock := doodle(_box(1.2, 0.12, 2.6), "d9b38c", c + Vector3(2.6, 0.1, -2.6), 0.025, true)
+	dock.rotation.y = 0.6
+	add_child(dock)
+
+
+func _fence(a: Vector3, b: Vector3) -> void:
+	var length := a.distance_to(b)
+	var dir := (b - a).normalized()
+	var posts := int(length / 1.3) + 1
+	for k in posts:
+		add_child(doodle(_box(0.12, 0.7, 0.12), "fffaf0", a.lerp(b, float(k) / (posts - 1)) + Vector3(0, 0.35, 0), 0.02, true))
+	var mid := (a + b) / 2.0
+	var yaw := atan2(dir.x, dir.z)
+	for h in [0.28, 0.55]:
+		var rail := doodle(_box(0.06, 0.1, length), "fffaf0", mid + Vector3(0, h, 0), 0.015, true)
+		rail.rotation.y = yaw
+		add_child(rail)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	cs.shape = _box_shape(Vector3(0.2, 0.8, length))
+	body.add_child(cs)
+	body.position = mid + Vector3(0, 0.4, 0)
+	body.rotation.y = yaw
+	add_child(body)
+
+
+func _bush(pos: Vector3) -> void:
+	var g := Node3D.new()
+	var leaf: String = _pick(["a8d8a0", "9fd0b4", "b5dc96"])
+	for b in [[0.55, 0.0, 0.0], [0.42, 0.45, 0.1], [0.4, -0.42, -0.05], [0.36, 0.1, 0.4]]:
+		g.add_child(doodle(_sphere(b[0], 12, 7), leaf, Vector3(b[1], b[0] * 0.8, b[2]), 0.03))
+	if rng.randf() < 0.35:  # some bushes have berries
+		for k in 4:
+			g.add_child(doodle(_sphere(0.07, 6, 4), "e5485e", Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(0.4, 0.8), 0.45), 0.01))
+	place(g, pos, rng.randf_range(0.9, 1.3), 1.4, INF, _cyl_shape(0.65, 0.9), Vector3(0, 0.45, 0))
+
+
+## A little butterfly that loops lazily around `home`. Always in colour: it's alive, not a doodle.
+func _butterfly(home: Vector3) -> void:
+	var g := Node3D.new()
+	var wing: String = _pick(["ff9ab5", "ffd86b", "b9a2ee", "8fd0f5"])
+	for sx in [-1.0, 1.0]:
+		var w := colored(_sphere(0.13, 8, 5), wing, Vector3(sx * 0.11, 0, 0), 0.012, 0.2)
+		w.scale = Vector3(1.0, 0.12, 0.8)
+		g.add_child(w)
+	g.add_child(colored(_cyl(0.02, 0.02, 0.18, 5), "1f1d24", Vector3.ZERO, 0.0, 0.0))
+	g.get_child(2).rotation.x = PI / 2.0
+	add_child(g)
+	flutters.append({"node": g, "home": home + Vector3(0, 1.2, 0), "phase": rng.randf() * TAU, "r": rng.randf_range(1.5, 3.5)})
+
+
+func _update_flutters() -> void:
+	for f in flutters:
+		var t: float = time * 0.6 + f.phase
+		var n: Node3D = f.node
+		var p: Vector3 = f.home + Vector3(cos(t) * f.r, sin(t * 2.7) * 0.4, sin(t * 1.3) * f.r)
+		n.rotation.y = atan2(p.x - n.position.x, p.z - n.position.z)
+		n.position = p
+		var flap := sin(time * 22.0 + f.phase) * 0.9
+		n.get_child(0).rotation.z = flap
+		n.get_child(1).rotation.z = -flap
 
 
 # ================================================================== the World Map (playable book map)
@@ -1456,6 +1665,7 @@ func _process(delta: float) -> void:
 		var slow: bool = e.kind in ["seal", "bloom"]
 		n.position.y = e.home.y + sin(time * 2.4 + e.home.x) * (0.05 if slow else 0.08)
 		n.rotation.y = time * (0.9 if slow else 1.5) + e.home.z
+	_update_flutters()
 	for id in friends:  # friends bob happily; a "!" bounces over anyone still needing help
 		var f: Dictionary = friends[id]
 		var hop := absf(sin(time * 3.0 + f.home.x))
