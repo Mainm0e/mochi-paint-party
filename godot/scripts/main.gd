@@ -8,6 +8,7 @@ const INK := Color("1f1d24")
 const ACCENT := Color("e3789a")
 const MUTED := Color("6b6672")
 const SAVE_PATH := "user://mochi_sketchbook.json"
+const TEST_SAVE_PATH := "user://test_run.json"   # test runs (--autotest, --level, --worldmap) never touch the real save
 const CROPS := {"eyes": Rect2i(272, 527, 480, 240), "mouths": Rect2i(432, 721, 160, 80),
 	"cheeks": Rect2i(200, 570, 624, 312), "marks": Rect2i(112, 440, 800, 400)}
 const FALL_Y := -6.0            # below this the mochi is redrawn at the last checkpoint
@@ -27,7 +28,9 @@ var cam_dist := 4.2
 var follow := Vector3.ZERO      # smoothed point the play camera orbits
 var shake := 0.0
 var time := 0.0
-var save := {"look": null, "pages": {}, "stickers": [], "music": 0.8, "sfx": 1.0, "look_speed": 0.5, "map_at": "1"}
+var save := {"look": null, "pages": {}, "stickers": [], "music": 0.8, "sfx": 1.0, "look_speed": 0.5, "map_at": "1",
+	"last": ""}  # last: the page you were on, so Continue takes you back there
+var save_path := SAVE_PATH
 var has_mochi := false
 var environment: Environment
 var cinematic := false          # a script is framing the camera (concept renders)
@@ -82,6 +85,10 @@ var _punch := 0.0               # 1 -> 0 after a Bloom Star: the camera leans in
 
 func _ready() -> void:
 	_register_input()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--autotest") or a.begins_with("--level") or a.begins_with("--worldmap"):
+			save_path = TEST_SAVE_PATH
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE_PATH))  # each test starts fresh
 	_load_save()
 	_build_scene()
 	_build_ui()
@@ -109,7 +116,7 @@ func _ready() -> void:
 	world.race_update.connect(func(text: String):
 		audio.play("collect", -6.0, 0.0, 1.4)
 		_toast(text))
-	enter_level("home")
+	enter_level("home", false)  # the menu backdrop: not a place you "were"
 	set_mode(Mode.MENU)
 	audio.set_volume("Music", save.music)
 	audio.set_volume("SFX", save.sfx)
@@ -242,9 +249,9 @@ func _build_scene() -> void:
 
 
 func _load_save() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
+	if not FileAccess.file_exists(save_path):
 		return
-	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(save_path))
 	if typeof(data) != TYPE_DICTIONARY:
 		return
 	if Mochi.valid_look(data.get("look")):
@@ -258,10 +265,11 @@ func _load_save() -> void:
 	save.sfx = clampf(float(data.get("sfx", 1.0)), 0.0, 1.0)
 	save.look_speed = clampf(float(data.get("look_speed", 0.5)), 0.0, 1.0)
 	save.map_at = String(data.get("map_at", "1"))
+	save.last = String(data.get("last", ""))
 
 
 func _store() -> void:
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(save))
 
@@ -279,8 +287,11 @@ func _page_save(page: String) -> Dictionary:
 
 # ================================================================== levels
 ## Load the Home Page or a book page and drop the mochi in at its start.
-func enter_level(name: String) -> void:
+func enter_level(name: String, remember := true) -> void:
 	var on_map := name == "worldmap"
+	if remember and save.last != name:  # remember where we are for Continue
+		save.last = name
+		_store()
 	var eaten: Array = _page_save(name).eaten if not name in ["home", "worldmap"] else []
 	if on_map:  # the map shows what is painted, where the mochi last was, and what was just finished
 		world.map_stars = {}
@@ -491,6 +502,9 @@ func _build_ui() -> void:
 	mv.add_child(help_label)
 	play_btn.pressed.connect(func():
 		if has_mochi:
+			var back: String = save.last  # Continue: straight back to the page you were on
+			if back != "" and back != "home" and (back == "worldmap" or world.page_exists(back)):
+				enter_level(back)
 			set_mode(Mode.PLAY)
 		else:
 			_from_mirror = false
@@ -746,10 +760,10 @@ func set_mode(m: Mode) -> void:
 	# third-person play locks the cursor for mouse look; every menu gets it back
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if m == Mode.PLAY else Input.MOUSE_MODE_VISIBLE
 	if m == Mode.MENU:
-		play_btn.text = "Play as %s" % _name() if has_mochi else "Play"
+		play_btn.text = ("Continue as %s" if save.last not in ["", "home"] else "Play as %s") % _name() if has_mochi else "Play"
 		make_btn.text = "Change my mochi" if has_mochi else "Make a mochi"
 		if world.level != "home":
-			enter_level("home")
+			enter_level("home", false)
 	if m == Mode.CREATE:
 		yaw = mochi.rotation.y  # camera in front of the face
 		name_edit.text = mochi.look.name

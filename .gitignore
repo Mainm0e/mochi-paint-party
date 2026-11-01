@@ -1,6 +1,5 @@
 # Godot: the import cache is rebuilt from the assets (keep the *.import and *.uid files)
 godot/.godot/
-godot/export_presets.cfg
 godot/build/
 
 # Blender autosave/backups

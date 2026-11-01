@@ -42,7 +42,12 @@ B="/c/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 After rebuilding the mochi, copy assets into Godot, then re-import:
 `blender/mochi/mochi.glb` -> `godot/assets/mochi/`, `blender/mochi/layers/` -> `godot/assets/mochi/layers/` (delete `layers.json` there).
 
-The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sketchbook/mochi_sketchbook.json` afterwards so the user starts fresh.
+Test runs (`--autotest`, `--level`, `--worldmap`) save to `user://test_run.json` (wiped at their start), never to the
+player's `mochi_sketchbook.json`. **Never delete the player's save.** Continue: `save.last` is the last page entered.
+
+Windows build: `godot/export_presets.cfg` ("Windows Desktop", one exe with the pck embedded, includes `levels/*.json`).
+Needs Godot 4.7.2 export templates (Editor > Manage Export Templates). Then:
+`"$G" --headless --path godot --export-release "Windows Desktop" build/MochiSketchbook.exe` (output is git-ignored).
 
 ## How the game is put together
 
