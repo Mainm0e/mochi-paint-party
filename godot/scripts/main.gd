@@ -129,6 +129,13 @@ func _ready() -> void:
 				camera.position = Vector3(0, 48, 52)
 				camera.look_at(Vector3.ZERO)
 				await get_tree().create_timer(0.2).timeout
+			for arg in OS.get_cmdline_user_args():  # --look=x,y,z,tx,ty,tz: put the camera anywhere for a check
+				if arg.begins_with("--look="):
+					var v := arg.trim_prefix("--look=").split_floats(",")
+					cinematic = true
+					camera.position = Vector3(v[0], v[1], v[2])
+					camera.look_at(Vector3(v[3], v[4], v[5]))
+					await get_tree().create_timer(0.2).timeout
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png(a.trim_prefix("--shot="))
 			print("SHOT %s: mochi at %s (scale %s, bob %s), camera at %s" % [world.level, mochi.global_position, mochi.scale, mochi.bob.scale, camera.global_position])

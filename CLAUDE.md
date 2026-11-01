@@ -30,7 +30,7 @@ G="/c/Users/mainm/Godot/Godot_v4.7.2-stable_win64_console.exe"
 "$G" --headless --path godot --quit-after 120          # quick script/parse check (look for SCRIPT ERROR)
 "$G" --path godot --resolution 1280x720 -- --autotest=<abs dir>   # scripted playthrough + screenshots, prints AUTOTEST lines
 "$G" --path godot --resolution 1600x900 -- --worldmap=<abs dir>   # world map concept renders (docs/world_concept/)
-"$G" --path godot -- --level=<name> [--overview] [--shot=<abs png>]   # straight into a page; --shot saves a picture and quits
+"$G" --path godot -- --level=<name> [--overview | --look=x,y,z,tx,ty,tz] [--shot=<abs png>]   # straight into a page; --shot saves a picture and quits
 node editor/serve.mjs                                              # level editor (GODOT env var overrides the exe path)
 
 # Blender 5.2 asset builds

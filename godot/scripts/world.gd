@@ -1502,7 +1502,7 @@ func _build_json(page: String) -> void:
 				var along := Vector3(cos(rot), 0, -sin(rot)) * cell / 2.0
 				_fence(pos - along, pos + along)
 			"sign":
-				_signpost(pos, o.get("text", ""))
+				_signpost(pos, o.get("text", ""), rot)
 			"platform":
 				var s := float(o.get("size", 3.0))
 				var cloud_top := top + float(o.get("high", 3.0))
@@ -1628,26 +1628,43 @@ func _stone_path(points: Array) -> void:
 			_keep.append([p.x, p.z, 0.6])
 
 
-func _signpost(pos: Vector3, text: String) -> void:
+## A wooden signpost. The text is written on the board itself (front and back), and the board is as wide as
+## the text, so long names never spill past it. `rot` turns the sign (0 = text faces south, toward +z).
+func _signpost(pos: Vector3, text: String, rot := 0.0) -> void:
+	var font := _ui_font()
+	var size := 40
+	var px := 0.006
+	var text_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x * px
+	var board_w := maxf(1.0, text_w + 0.35)
 	var g := Node3D.new()
-	g.add_child(doodle(_cyl(0.06, 0.07, 1.3, 6), "c99a6a", Vector3(0, 0.65, 0), 0.02))
-	g.add_child(doodle(_box(1.3, 0.42, 0.08), "f3d9b0", Vector3(0, 1.2, 0), 0.025, true))
-	place(g, pos, 1.0, 0.5, 0.0, _cyl_shape(0.12, 1.3), Vector3(0, 0.65, 0))
-	var label := Label3D.new()
-	label.text = text
-	label.font = _ui_font()
-	label.font_size = 64
-	label.pixel_size = 0.005
-	label.modulate = Color("1f1d24")
-	label.outline_modulate = Color("f3d9b0")
-	label.outline_size = 8
-	label.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	label.position = pos + Vector3(0, 1.22, 0)
-	add_child(label)
-	_keep.append([pos.x, pos.z, 0.8])
+	g.add_child(doodle(_cyl(0.06, 0.07, 0.98, 6), "c99a6a", Vector3(0, 0.49, 0), 0.02))  # stops under the board
+	# the board and its ink frame use still, flat materials (no doodle wobble, no outline shell), so nothing
+	# ever pokes through the writing
+	for part in [[Vector3(board_w + 0.08, 0.5, 0.06), "1f1d24"], [Vector3(board_w, 0.42, 0.1), "f3d9b0"]]:
+		var mi := MeshInstance3D.new()
+		mi.mesh = _box(part[0].x, part[0].y, part[0].z)
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = Color(part[1])
+		mi.material_override = m
+		mi.position = Vector3(0, 1.2, 0)
+		g.add_child(mi)
+	for side in [1.0, -1.0]:  # written on both faces, never mirrored
+		var label := Label3D.new()
+		label.text = text
+		label.font = font
+		label.font_size = size
+		label.pixel_size = px
+		label.modulate = Color("1f1d24")
+		label.outline_size = 0
+		label.double_sided = false
+		label.position = Vector3(0, 1.2, side * 0.056)  # just in front of the board face
+		label.rotation.y = 0.0 if side > 0.0 else PI
+		g.add_child(label)
+	place(g, pos, 1.0, 0.5, rot, _cyl_shape(0.12, 1.3), Vector3(0, 0.65, 0))
+	_keep.append([pos.x, pos.z, maxf(0.8, board_w / 2.0)])
 
 
-## A pond with lily pads, reeds and a little dock. Flat, so the mochi just walks across the water.
 func _pond(c: Vector3, r := 4.0) -> void:
 	var sc := r / 4.0
 	var water := doodle(_cyl(r, r, 0.04, 32), "8fd0f5", c + Vector3(0, 0.02, 0), 0.04)
