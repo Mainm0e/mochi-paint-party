@@ -2,6 +2,8 @@
 
 *Status: first draft, 2026-11-01. Direction chosen: **Sketchbook Adventure**, casual with some challenge, PC (Windows) first.*
 
+**The level-by-level plan for a €10–20 Steam release (chapters, star lists, polish, roadmap) is in [level_design.md](level_design.md).** Built so far: the Meadow and the Village (Sketch Mochi).
+
 ## Pitch
 
 A squishy mochi hops through a sketchbook whose colors have been rubbed out. **Eat** the ink drops and doodles you find to bring the color back, and to borrow their powers: swallow a cloud to float, a pebble to stomp, a pencil to draw yourself a bridge. Every page is a little hand-drawn level to explore; finish it to color it in for good, and bring souvenirs back to your own home page.

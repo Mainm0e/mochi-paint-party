@@ -11,7 +11,7 @@ const SAVE_PATH := "user://mochi_sketchbook.json"
 const CROPS := {"eyes": Rect2i(272, 527, 480, 240), "mouths": Rect2i(432, 721, 160, 80),
 	"cheeks": Rect2i(200, 570, 624, 312), "marks": Rect2i(112, 440, 800, 400)}
 const FALL_Y := -6.0            # below this the mochi is redrawn at the last checkpoint
-const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6"}
+const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6", "sketch": "ffe07a"}
 
 enum Mode { MENU, CREATE, PLAY, PAUSED }
 
@@ -72,6 +72,7 @@ var tab := "Flavor"
 var _img_cache := {}
 var _told := {}                 # one-time tips already shown
 var _just_done := ""            # a page finished this visit: the map celebrates it on the way back
+var _sketch_cd := 0.0           # Sketch Mochi: a short pause between drawings
 
 
 func _ready() -> void:
@@ -980,7 +981,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			if not mochi.spit():
 				think("Nothing to spit! Eat a doodle first.", 1.6)
 		if event.is_action_pressed("poke"):
-			mochi.poke()
+			if mochi.power == "sketch":
+				_sketch()
+			else:
+				mochi.poke()
 		if event.is_action_pressed("interact") and not _zone.is_empty():
 			_use_zone(_zone)
 		for i in Mochi.EMOTES.size():
@@ -1067,6 +1071,19 @@ func _process(delta: float) -> void:
 	speech.visible = mode == Mode.PLAY and time < _speech_until
 	_update_cloud(delta)
 	_update_camera(delta)
+
+
+## Sketch Mochi draws an ink bridge ahead of its feet (also in mid-air, as a rescue).
+func _sketch() -> void:
+	if time < _sketch_cd:
+		return
+	_sketch_cd = time + 0.45
+	world.sketch_bridge(mochi.global_position, mochi.forward())
+	mochi.poke()  # a little squish as it draws
+	audio.play("click", -2.0, 0.08, 0.8)
+	if not _told.has("sketch"):
+		_told["sketch"] = true
+		think("A bridge! It'll rub itself out soon, so hurry across.", 3.0)
 
 
 ## Pop a thought cloud over the mochi for `seconds`.
@@ -1312,12 +1329,81 @@ func _autotest(dir: String) -> void:
 	print("AUTOTEST stamp 2 zone: '%s'" % _zone.get("prompt", ""))
 	_use_zone(_zone)
 	await wait.call(0.6)
-	print("AUTOTEST still being drawn thought: '%s' (still on %s)" % [cloud_label.text, world.level])
+	print("AUTOTEST stamp 2 opens: %s" % world.level)
+	enter_level("worldmap")
+	set_mode(Mode.PLAY)
+	await wait.call(1.0)
 	await shot.call("10_map_next")
 	place.call(Vector3(0, 0.4, 11.1))
 	await wait.call(0.4)
 	_use_zone(_zone)
 	await wait.call(1.0)
 	print("AUTOTEST home stamp -> %s" % world.level)
+	# --- Chapter 2: the Village
+	enter_level("village")
+	set_mode(Mode.PLAY)
+	await wait.call(2.0)
+	await shot.call("11_village_start")
+	# eat the pencil doodle, then draw a bridge over the canal to the first star
+	place.call(Vector3(-3.5, 0.1, 7.3))
+	for i in 200:
+		await get_tree().process_frame
+		if mochi.power == "sketch":
+			break
+	await wait.call(1.0)
+	print("AUTOTEST power at the pedestal: '%s'" % mochi.power)
+	place.call(Vector3(0, 0.1, 2.6), PI)
+	yaw = 0.0
+	await wait.call(0.3)
+	_sketch()
+	await wait.call(0.3)
+	await shot.call("12_sketch_bridge")
+	Input.action_press("move_forward")
+	await wait.call(2.2)
+	Input.action_release("move_forward")
+	await star_wait.call(0)
+	print("AUTOTEST walked the sketch bridge: z %.1f y %.2f, stars %d" % [mochi.global_position.z, mochi.global_position.y, _stars("village")])
+	# the windmill: sketch from the hill top across to the balcony
+	place.call(Vector3(16.6, 2.6, -20.5), PI / 2.0)
+	yaw = -PI / 2.0
+	await wait.call(0.4)
+	_sketch()
+	await wait.call(0.2)
+	Input.action_press("move_forward")
+	await wait.call(2.6)
+	Input.action_release("move_forward")
+	print("AUTOTEST crossed to the mill balcony: x %.1f y %.2f" % [mochi.global_position.x, mochi.global_position.y])
+	await star_wait.call(1)
+	await shot.call("13_mill")
+	# Postie's letters (stall awning, rooftop, chimney), then hand them in
+	for p in [Vector3(-19, 1.85, 8.4), Vector3(-24, 1.1, -12.8), Vector3(8.5, 1.3, -18.4)]:
+		place.call(p)
+		for i in 200:
+			await get_tree().process_frame
+			if _inhaling.is_empty() and world.nearest_edible(mochi.global_position).is_empty():
+				break
+		await wait.call(0.4)
+	print("AUTOTEST letters: %s" % [["letter1", "letter2", "letter3"].map(func(l): return world.has_item(l))])
+	place.call(Vector3(6, 0.1, 20.6))
+	await wait.call(0.4)
+	_use_zone(_zone)
+	await wait.call(0.6)
+	print("AUTOTEST Postie: '%s', star shown %s" % [world.friends.postie.said, world.bloom_shown("b_postie")])
+	# the clock tower top and the garden maze (placed, to check the stars are reachable spots)
+	place.call(Vector3(-5, 6.2, -25.3))
+	await star_wait.call(_stars("village"))
+	await shot.call("14_tower")
+	place.call(Vector3(22.5, 0.1, 18.5))
+	await star_wait.call(_stars("village"))
+	print("AUTOTEST village stars: %d / %d" % [_stars("village"), world.page_stars("village")])
+	cinematic = true
+	ui.visible = false
+	environment.fog_depth_end = 200.0
+	camera.position = Vector3(-30, 14, -2)
+	camera.look_at(Vector3(-10, 3, -20))
+	await wait.call(0.3)
+	await shot.call("15_rooftops")
+	cinematic = false
+	ui.visible = true
 	print("AUTOTEST DONE")
 	get_tree().quit()

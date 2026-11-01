@@ -84,7 +84,7 @@ The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sket
 
 ## Status (2026-11-01)
 
-Playable slice done: Home Page (book -> World Map, mirror -> creator, sticker board), a walkable **World Map**
+Playable: Home Page (book -> World Map, mirror -> creator, sticker board), a walkable **World Map**
 (chapter stamps with star counts, paths, regions painting in) and the open **Meadow** (12 Bloom Stars: climbs, a glide,
 nest, cage switch, mushroom bounce, rooftop, 3 doodle-friend quests incl. a hoop race, all drops, and the old
 Meadow 1 run as the "Ink Trail" off the north edge; 14 drops, 5 stickers,
@@ -94,7 +94,12 @@ big-mouth inhale + gulp, 6 emotes, music + SFX, gamepad. Verified by the autotes
 The Meadow is dressed by `_dress_meadow()` (stone paths to each landmark, signposts, pond, picnic, fences,
 edge hedges, groves/bushes/rocks/flower beds placed with `_clear()` keep-outs, butterflies).
 
-Next candidates: hand playtest + tuning;
+Chapter 2 **The Village** (`_build_village`): canal, Sketch Mochi (use button draws a 5 m ink bridge,
+`world.sketch_bridge`, rubbed out after 6 s, 2 at a time), rooftops + Clock Tower, laundry lines, Windmill Hill,
+chimney-yard nest, market cage, hedge maze, friends Glim (spark), Postie (3 letters), Zip (hoop race). 12 stars.
+The full commercial plan (chapters 3-5, polish list, Steam checklist, roadmap) is **docs/level_design.md**.
+
+Next candidates (see the roadmap in docs/level_design.md): hand playtest + tuning;
 camera collision (clips through props); spit bounce; the Village page /
 more chapters; the Eraser; friends moving to the Home Page; decorating it with stickers; a Windows build.
 

@@ -25,6 +25,7 @@ const DEFAULT_LOOK := {"name": "Mochi", "flavor": "f9c4cc", "topping": "Sprout",
 const POWERS := {
 	"puffy": {"name": "Puffy Mochi", "color": "f6f7ff", "hint": "I'm all puffy! Hold Space in the air to float."},
 	"stone": {"name": "Stone Mochi", "color": "b5b8c6", "hint": "So heavy! Press Space in the air to stomp."},
+	"sketch": {"name": "Sketch Mochi", "color": "ffe9a0", "hint": "I can draw! Click (or X) to sketch a bridge in front of me."},
 }
 
 signal stepped
@@ -203,8 +204,21 @@ func _build_hats() -> void:
 	cap.position = Vector3(0.03, 0.5, -0.02)
 	cap.rotation.z = 0.3
 	stone.add_child(cap)
-	for k in {"puffy": puffy, "stone": stone}:
-		var h: Node3D = {"puffy": puffy, "stone": stone}[k]
+	var sketch := Node3D.new()  # a stubby pencil stuck in the top, tip up
+	for part in [[0.05, 0.05, 0.16, "ffd86b", 0.56], [0.0, 0.05, 0.07, "f3d2a6", 0.675], [0.051, 0.051, 0.05, "f59ab4", 0.465]]:
+		var p := MeshInstance3D.new()
+		var pm := CylinderMesh.new()
+		pm.top_radius = part[0]
+		pm.bottom_radius = part[1]
+		pm.height = part[2]
+		pm.radial_segments = 6
+		p.mesh = pm
+		p.material_override = _toon(Color(part[3]), 0.05, 0.006)
+		p.position = Vector3(0.0, part[4], 0.0)
+		sketch.add_child(p)
+	sketch.rotation.z = -0.25
+	for k in {"puffy": puffy, "stone": stone, "sketch": sketch}:
+		var h: Node3D = {"puffy": puffy, "stone": stone, "sketch": sketch}[k]
 		h.visible = false
 		bob.add_child(h)
 		_hats[k] = h
