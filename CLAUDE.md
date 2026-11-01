@@ -98,6 +98,9 @@ Chapter 2 **The Village** (`_build_village`): canal, Sketch Mochi (use button dr
 `world.sketch_bridge`, rubbed out after 6 s, 2 at a time), rooftops + Clock Tower, laundry lines, Windmill Hill,
 chimney-yard nest, market cage, hedge maze, friends Glim (spark), Postie (3 letters), Zip (hoop race). 12 stars.
 The full commercial plan (chapters 3-5, polish list, Steam checklist, roadmap) is **docs/level_design.md**.
+Polish so far: camera collision (ray from mochi to camera, `_update_camera`), jump buffer + tap-for-short-hop
+(`mochi.gd` `_buffer` / `_cuttable`), Bloom Star celebration (`_celebrate`: hit-stop, `_punch` camera lean, confetti),
+star light beams (`bloom()`), pause-menu page map (`_draw_page_map`).
 
 Next candidates (see the roadmap in docs/level_design.md): hand playtest + tuning;
 camera collision (clips through props); spit bounce; the Village page /

@@ -58,6 +58,8 @@ const SPEED := 2.6
 const SPRINT := 1.7             # sprint speed multiplier
 const GRAVITY := -11.0
 const JUMP := 3.6
+const JUMP_BUFFER := 0.14       # seconds a too-early jump press is remembered
+const JUMP_CUT := 0.45           # letting go of jump while rising keeps this much of the upward speed
 const COYOTE := 0.12            # a jump still counts this long after walking off an edge
 const GLIDE_FALL := -0.7        # Puffy Mochi's slowest fall while holding jump
 const GLIDE_SPEED := 3.3
@@ -102,6 +104,9 @@ var _tex_cache := {}
 var _hats := {}
 var _redraw := 1.0              # 0 -> 1 while being drawn back in at a checkpoint
 var size := 1.0                 # bigger on the World Map: scales the body, its stride and its hop
+var _buffer := 0.0              # a jump pressed just before landing waits this long to happen
+var _cuttable := false          # this jump gets lower if jump is let go early
+var _ground_h := 99.0           # how far the floor below is (from the shadow ray)
 
 
 func _ready() -> void:
@@ -310,10 +315,15 @@ func _on_anim_finished(anim_name: StringName) -> void:
 
 ## On the ground: hop. In the air: Stone Mochi stomps; anyone else double jumps (costs stamina).
 func jump() -> void:
+	# about to land? keep the press for the landing rather than spending the double jump
+	if not is_on_floor() and _air >= COYOTE and velocity.y < 0.0 and _ground_h < 0.45 and power != "stone":
+		_buffer = JUMP_BUFFER
+		return
 	if jumps == 0 and (is_on_floor() or _air < COYOTE):
 		velocity.y = JUMP * (0.85 if power == "stone" else 1.0) * sqrt(size)
 		jumps = 1
 		_air = COYOTE
+		_cuttable = true
 		jumped.emit()
 	elif power == "stone" and not pounding:
 		pounding = true
@@ -324,7 +334,10 @@ func jump() -> void:
 		jumps = 2
 		_spend(DOUBLE_JUMP_COST)
 		_spin = 0.0
+		_cuttable = true
 		double_jumped.emit()
+	else:
+		_buffer = JUMP_BUFFER
 
 
 func _spend(amount: float) -> void:
@@ -430,6 +443,11 @@ func step(delta: float, input: Vector2, yaw: float, sprint := false, jump_held :
 	velocity.x = hv.x
 	velocity.z = hv.y
 	# --- vertical: gravity, Puffy's float, Stone's stomp
+	_buffer = maxf(0.0, _buffer - delta)
+	if _cuttable and (velocity.y <= 0.0 or not jump_held):  # a tap is a small hop, a hold a full one
+		if velocity.y > 0.0:
+			velocity.y *= JUMP_CUT
+		_cuttable = false
 	if not is_on_floor():
 		velocity.y += GRAVITY * (1.3 if power == "stone" else 1.0) * delta
 		if gliding:
@@ -444,6 +462,9 @@ func step(delta: float, input: Vector2, yaw: float, sprint := false, jump_held :
 			land = 0.0
 			jumps = 0
 			landed.emit()
+			if _buffer > 0.0:  # the jump pressed a moment too early happens now
+				_buffer = 0.0
+				jump()
 			if pounding:
 				pounding = false
 				land = -0.15  # an extra-heavy landing squash
@@ -542,7 +563,10 @@ func _place_shadow() -> void:
 	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 0.2, 0), global_position + Vector3(0, -30, 0), 1)
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	shadow.visible = not hit.is_empty()
+	if hit.is_empty():
+		_ground_h = 99.0
 	if hit:
 		shadow.global_position = hit.position + Vector3(0, 0.015, 0)
 		var h: float = global_position.y - hit.position.y
+		_ground_h = h
 		shadow.scale = Vector3.ONE * clampf(1.0 - h * 0.35, 0.35, 1.0)

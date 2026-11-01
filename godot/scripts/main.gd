@@ -65,6 +65,9 @@ var _inhaling := {}             # whatever is being slurped up right now
 var _gape_time := 0.0
 var _zone := {}
 var pause_panel: Control
+var map_card: PanelContainer     # the page map in the pause menu
+var map_title: Label
+var map_view: Control
 var home_btn: Button
 var win_panel: Control
 var win_text: Label
@@ -73,6 +76,7 @@ var _img_cache := {}
 var _told := {}                 # one-time tips already shown
 var _just_done := ""            # a page finished this visit: the map celebrates it on the way back
 var _sketch_cd := 0.0           # Sketch Mochi: a short pause between drawings
+var _punch := 0.0               # 1 -> 0 after a Bloom Star: the camera leans in
 
 
 func _ready() -> void:
@@ -662,6 +666,25 @@ func _build_ui() -> void:
 	pause_panel = _overlay("Paused", "", [resume, edit, home_btn, restart, to_menu, _volume_row("Music", "music"),
 		_volume_row("Sounds", "sfx"), _volume_row("Look", "look_speed")])
 	ui.add_child(pause_panel)
+	# the page map beside the pause card: where you are, stars found, stars spotted but not yet eaten, friends
+	map_card = PanelContainer.new()
+	map_card.anchor_top = 0.5
+	map_card.anchor_bottom = 0.5
+	map_card.offset_left = 28
+	map_card.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var map_box := _vbox(6)
+	map_title = _label("Page map", 22)
+	map_box.add_child(map_title)
+	map_view = Control.new()
+	map_view.custom_minimum_size = Vector2(300, 300)
+	map_view.draw.connect(_draw_page_map)
+	map_box.add_child(map_view)
+	var legend := _label("Gold: found   ·   Outline: spotted   ·   Hidden stars stay secret!", 13, MUTED)
+	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	legend.custom_minimum_size.x = 300
+	map_box.add_child(legend)
+	map_card.add_child(map_box)
+	pause_panel.add_child(map_card)
 	var keep := _button("Keep exploring")
 	var win_home := _button("Back to the map", true)
 	keep.pressed.connect(func(): win_panel.visible = false; set_mode(Mode.PLAY))
@@ -711,6 +734,10 @@ func set_mode(m: Mode) -> void:
 	creator.visible = m == Mode.CREATE
 	hud.visible = m == Mode.PLAY or m == Mode.PAUSED
 	pause_panel.visible = m == Mode.PAUSED
+	if m == Mode.PAUSED:
+		map_card.visible = world.page_stars(world.level) > 0
+		map_title.text = "%s   ·   %d / %d stars" % [world.page_name(), _stars(world.level), world.page_stars(world.level)]
+		map_view.queue_redraw()
 	audio.muffle(m == Mode.PAUSED)
 	# third-person play locks the cursor for mouse look; every menu gets it back
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if m == Mode.PLAY else Input.MOUSE_MODE_VISIBLE
@@ -809,6 +836,7 @@ func _on_ate(kind: String, e: Dictionary) -> void:
 		"bloom":
 			audio.play("win", 0.0, 0.0)
 			_refresh_hud()
+			_celebrate()
 			var n := _stars(world.level)
 			_toast("Bloom Star!  %d / %d" % [n, world.page_stars(world.level)])
 			if n == World.STARS_TO_OPEN:
@@ -1073,6 +1101,77 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 
 
+## Draw the page seen from above, fitted to everything on it (stars, friends, flags and the mochi).
+func _draw_page_map() -> void:
+	var pts: Array[Vector3] = [mochi.global_position]
+	for e in world.edibles:
+		if e.kind in ["bloom", "drop"]:
+			pts.append(e.home)
+	for id in world.friends:
+		pts.append(world.friends[id].home)
+	for c in world.checkpoints:
+		pts.append(c.pos)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in pts:
+		lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.z))
+		hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.z))
+	lo -= Vector2(4, 4)
+	hi += Vector2(4, 4)
+	var box := map_view.size
+	var s := minf(box.x / (hi.x - lo.x), box.y / (hi.y - lo.y))
+	var off := (box - (hi - lo) * s) / 2.0
+	var to_map := func(p: Vector3) -> Vector2: return off + (Vector2(p.x, p.z) - lo) * s
+	map_view.draw_rect(Rect2(off, (hi - lo) * s), Color("eef3e2"))
+	for k in range(1, 8):  # a faint grid, like the paper
+		var gx := off.x + (hi.x - lo.x) * s * k / 8.0
+		var gy := off.y + (hi.y - lo.y) * s * k / 8.0
+		map_view.draw_line(Vector2(gx, off.y), Vector2(gx, off.y + (hi.y - lo.y) * s), Color(INK, 0.07))
+		map_view.draw_line(Vector2(off.x, gy), Vector2(off.x + (hi.x - lo.x) * s, gy), Color(INK, 0.07))
+	map_view.draw_rect(Rect2(off, (hi - lo) * s), INK, false, 2.0)
+	var star := func(at: Vector2, r: float) -> PackedVector2Array:
+		var poly := PackedVector2Array()
+		for k in 10:
+			var a := -PI / 2.0 + k * PI / 5.0
+			poly.append(at + Vector2(cos(a), sin(a)) * (r if k % 2 == 0 else r * 0.45))
+		return poly
+	for c in world.checkpoints:
+		if c.node.visible:
+			var at: Vector2 = to_map.call(c.pos)
+			map_view.draw_line(at, at - Vector2(0, 10), INK, 1.5)
+			map_view.draw_colored_polygon(PackedVector2Array([at - Vector2(0, 10), at - Vector2(-7, 7), at - Vector2(0, 4)]), Color("f2788e"))
+	for e in world.edibles:
+		if e.kind == "bloom" and (e.got or e.node.visible):
+			var poly: PackedVector2Array = star.call(to_map.call(e.home), 9.0)
+			if e.got:
+				map_view.draw_colored_polygon(poly, Color("ffd86b"))
+			poly.append(poly[0])
+			map_view.draw_polyline(poly, INK, 1.5)
+	var font := map_view.get_theme_default_font()
+	for id in world.friends:
+		var f: Dictionary = world.friends[id]
+		var at: Vector2 = to_map.call(f.home)
+		map_view.draw_circle(at, 6.0, Color("c3e2a0"))
+		map_view.draw_arc(at, 6.0, 0, TAU, 16, INK, 1.5)
+		if f.mark.visible:
+			map_view.draw_string(font, at + Vector2(5, -6), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, ACCENT)
+	var me: Vector2 = to_map.call(mochi.global_position)
+	map_view.draw_circle(me, 7.0, Color("f8c4cf"))
+	map_view.draw_arc(me, 7.0, 0, TAU, 18, INK, 2.0)
+	var look := Vector2(sin(mochi.rotation.y), cos(mochi.rotation.y)) * 12.0
+	map_view.draw_line(me, me + look, INK, 2.0)
+
+
+## A Bloom Star is gobbled: the moment freezes for a heartbeat, confetti bursts, the camera leans in.
+func _celebrate() -> void:
+	world.confetti(mochi.global_position + Vector3(0, 0.6, 0))
+	_punch = 1.0
+	shake = 0.12
+	Engine.time_scale = 0.06
+	await get_tree().create_timer(0.16, true, false, true).timeout  # real seconds, not slowed ones
+	Engine.time_scale = 1.0
+
+
 ## Sketch Mochi draws an ink bridge ahead of its feet (also in mid-air, as a rescue).
 func _sketch() -> void:
 	if time < _sketch_cd:
@@ -1151,8 +1250,14 @@ func _update_camera(delta: float) -> void:
 			follow.z = lerpf(follow.z, p.z, 1.0 - exp(-delta * 10.0))
 			follow.y = lerpf(follow.y, p.y, 1.0 - exp(-delta * (6.0 if mochi.is_on_floor() else 2.5)))
 			target = follow + Vector3(0, 0.35 * mochi.size, 0)
-			var orbit := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * cam_dist
+			_punch = maxf(0.0, _punch - delta * 0.8)
+			var dist := cam_dist * (1.0 - 0.4 * sin(_punch * PI / 2.0))  # a Bloom Star pulls the camera in for a moment
+			var orbit := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * dist
 			eye = target + orbit
+			# don't go through walls, roofs or trees: stop just in front of whatever is between us and the mochi
+			var hit := camera.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(target, eye, 1))
+			if not hit.is_empty():
+				eye = hit.position + (target - eye).normalized() * 0.3
 	var k := 1.0 - exp(-delta * (25.0 if mode == Mode.PLAY else 3.0))
 	camera.position = camera.position.lerp(eye, k)
 	if shake > 0.0:  # a little thump from the ground pound
@@ -1289,9 +1394,11 @@ func _autotest(dir: String) -> void:
 	await wait.call(0.6)
 	place.call(Vector3(6.8, 0.1, -18))
 	await wait.call(0.3)
+	Input.action_press("jump")  # held, like a player: a full hop, then the stomp
 	mochi.jump()
 	await wait.call(0.25)
 	mochi.jump()
+	Input.action_release("jump")
 	await wait.call(1.8)
 	print("AUTOTEST cage switch: %s, cage y %.2f" % [world.switches[0].on, world.switches[0].bridge.position.y])
 	await shot.call("6_cage")
@@ -1307,6 +1414,10 @@ func _autotest(dir: String) -> void:
 	print("AUTOTEST stars: %d / %d, page done %s" % [_stars(world.level), world.page_stars("meadow"), _page_save("meadow").done])
 	await wait.call(2.0)
 	await shot.call("8_trail")
+	set_mode(Mode.PAUSED)
+	await wait.call(0.3)
+	await shot.call("8a_pause_map")
+	set_mode(Mode.PLAY)
 	cinematic = true  # a bird's-eye view of the whole open Meadow
 	ui.visible = false
 	environment.fog_depth_begin = 80.0

@@ -92,12 +92,12 @@ towers, then a final "eat the Eraser's shadow" moment that paints the whole book
 
 ## 6. Moment-to-moment polish checklist (to sell, this matters more than content)
 
-- **Camera:** collision (stop clipping into props), auto-recentre when walking, a "look at landmark" on entry.
-- **Jump feel:** jump buffering (0.12 s), coyote time (have), variable jump height (release early = lower).
-- **Readability:** every star gets a glint visible from far; a soft chime when one is near.
-- **Feedback:** star-get celebration (camera push-in, mochi dance, 1 s freeze); confetti ink splats.
+- **Camera:** ✓ collision (stops in front of walls). To do: auto-recentre when walking, a "look at landmark" on entry.
+- **Jump feel:** ✓ jump buffering (0.14 s), ✓ coyote time, ✓ variable jump height (release early = lower).
+- **Readability:** ✓ every star has a soft light beam visible from far. To do: a soft chime when one is near.
+- **Feedback:** ✓ star-get celebration (short freeze, camera push-in, shake, confetti, happy emote).
 - **Onboarding:** Meadow first 5 minutes teach move → eat → jump → power, through friends, never text walls.
-- **Map/compass:** the pause menu shows the page map with found/unfound star silhouettes and their names.
+- **Map/compass:** ✓ the pause menu shows the page map (you, flags, friends needing help, found and spotted stars). To do: star names.
 - **Accessibility:** rebinding, text size, colour-blind friendly star markers, "assist" mode (extra glide/jump).
 - **Audio:** one music theme per chapter, a calmer version for night; footstep sounds per surface.
 

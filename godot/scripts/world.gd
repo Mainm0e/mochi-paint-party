@@ -54,6 +54,7 @@ var _paper := preload("res://shaders/paper.gdshader")
 var _mats := {}
 var _blob_mat: StandardMaterial3D
 var _font: SystemFont
+var _beam_mat: StandardMaterial3D
 
 
 # ================================================================== loading
@@ -789,10 +790,38 @@ func bloom(id: String, pos: Vector3, hidden := false) -> void:
 	node.add_child(colored(_star_mesh(0.5, 0.22, 0.12), "ffd86b", Vector3.ZERO, 0.03, 0.35))
 	node.add_child(colored(_sphere(0.13, 10, 6), "fff6c8", Vector3(0, 0, 0.1), 0.0, 0.0))
 	node.position = pos + Vector3(0, 0.9, 0)
+	if _beam_mat == null:  # a soft beam of light, so stars can be spotted from across the page
+		_beam_mat = StandardMaterial3D.new()
+		_beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_beam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_beam_mat.albedo_color = Color(1.0, 0.86, 0.42, 0.28)
+		_beam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var beam := MeshInstance3D.new()
+	beam.mesh = _cyl(0.05, 0.22, 7.0, 10)
+	beam.material_override = _beam_mat
+	beam.position = Vector3(0, 3.6, 0)
+	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(beam)
 	var e := _edible("bloom", id, node)
 	if hidden:
 		node.visible = false
 		e.shadow.visible = false
+
+
+## A burst of ink confetti (little coloured stars) that pops out and falls.
+func confetti(at: Vector3) -> void:
+	var colors := ["ff9ab5", "ffd86b", "b9a2ee", "8fd0f5", "a8d8a0", "ffb38a"]
+	for k in 26:
+		var bit := colored(_star_mesh(0.11, 0.05, 0.02), colors[k % colors.size()], at, 0.008, 0.2)
+		add_child(bit)
+		var dir := Vector3(rng.randf_range(-1, 1), rng.randf_range(0.6, 1.6), rng.randf_range(-1, 1)).normalized()
+		var peak := at + dir * rng.randf_range(1.2, 2.4)
+		var tw := bit.create_tween().set_parallel()
+		tw.tween_property(bit, "position", peak, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(bit, "rotation", Vector3(rng.randf() * TAU, rng.randf() * TAU, 0), 1.3)
+		tw.chain().tween_property(bit, "position", peak - Vector3(0, 2.2, 0), 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.parallel().tween_property(bit, "scale", Vector3.ONE * 0.01, 0.9)
+		tw.chain().tween_callback(bit.queue_free)
 
 
 func reveal_bloom(id: String, instant := false) -> void:
