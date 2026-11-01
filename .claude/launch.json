@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "level-editor",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["editor/serve.mjs"],
+      "port": 5175
+    },
+    {
       "name": "mochi-maker",
       "runtimeExecutable": "node",
       "runtimeArgs": ["creator/serve.mjs"],

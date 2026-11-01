@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mochi Level Editor</title>
+<style>
+  :root {
+    --paper: #f8f6f0; --card: #ffffff; --ink: #1f1d24; --muted: #6b6672; --accent: #e3789a; --accent-soft: #fbe3eb;
+    --line: #d8d2c6; --hand: "Segoe Print", "Comic Sans MS", "Chalkboard SE", cursive;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+    font: 14px/1.35 system-ui, "Segoe UI", sans-serif; overflow: hidden; }
+  button, select, input { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-rows: auto 1fr; grid-template-columns: 290px 1fr 260px; height: 100%; }
+  header { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+    border-bottom: 2px solid var(--ink); background: var(--card); flex-wrap: wrap; }
+  header h1 { font: 700 20px var(--hand); margin: 0 10px 0 0; white-space: nowrap; }
+  .card { background: var(--card); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 3px 3px 0 var(--ink); }
+  .btn { border: 2px solid var(--ink); background: var(--card); border-radius: 10px; padding: 4px 10px; cursor: pointer;
+    box-shadow: 2px 2px 0 var(--ink); white-space: nowrap; }
+  .btn:hover { background: var(--accent-soft); }
+  .btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.on { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: 1px; }
+  input[type=text], input[type=number], select { border: 2px solid var(--ink); border-radius: 8px; padding: 3px 6px;
+    background: #fff; min-width: 0; }
+  aside { overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+  aside.left { border-right: 2px solid var(--ink); }
+  aside.right { border-left: 2px solid var(--ink); }
+  aside h2 { font: 700 15px var(--hand); margin: 0 0 6px; }
+  .section { padding: 10px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+  .tool { display: flex; align-items: center; gap: 5px; text-align: left; font-size: 12.5px; padding: 4px 5px; min-width: 0; overflow: hidden; }
+  .tool span { overflow: hidden; text-overflow: ellipsis; }
+  .tool canvas { flex: none; }
+  .row { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+  .row label { flex: 0 0 74px; color: var(--muted); font-size: 13px; }
+  .row > input, .row > select { flex: 1; }
+  .hint { color: var(--muted); font-size: 12px; }
+  main { position: relative; overflow: hidden; background: #ebe7df; }
+  main canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #view3d { display: none; }
+  .viewtoggle { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; z-index: 2; }
+  .status { position: absolute; bottom: 8px; left: 10px; right: 10px; display: flex; justify-content: space-between;
+    color: var(--muted); font-size: 12px; pointer-events: none; z-index: 2; }
+  .toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%) rotate(-1.5deg); padding: 6px 14px;
+    font: 700 16px var(--hand); display: none; z-index: 3; }
+  .heights { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .heights .btn { padding: 2px 0; text-align: center; }
+  .counts { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; }
+  .counts span:nth-child(even) { text-align: right; font-weight: 600; }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 200px 1fr; }
+    aside.right { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Mochi Level Editor</h1>
+    <label class="hint" for="levelName">Level</label>
+    <input id="levelName" type="text" value="village" size="12" title="File name: a-z, 0-9, - and _">
+    <select id="levelList" title="Open a saved level"><option value="">Open…</option></select>
+    <button class="btn" id="newBtn">New</button>
+    <button class="btn" id="saveBtn">Save</button>
+    <button class="btn primary" id="playBtn">Play in Godot</button>
+    <span style="flex:1"></span>
+    <button class="btn" id="undoBtn" title="Ctrl+Z">Undo</button>
+    <button class="btn" id="redoBtn" title="Ctrl+Y">Redo</button>
+    <button class="btn" id="exportBtn" title="Download the level file">Download</button>
+    <label class="btn" title="Load a level file">Import<input id="importFile" type="file" accept=".json" hidden></label>
+  </header>
+
+  <aside class="left">
+    <div class="card section">
+      <h2>Ground</h2>
+      <div class="grid2" id="groundTools"></div>
+      <div class="row" style="margin-top:8px"><label>Brush</label>
+        <select id="brush"><option value="1">1 cell</option><option value="2">2 × 2</option><option value="3" selected>3 × 3</option><option value="5">5 × 5</option></select></div>
+      <div class="hint" style="margin:6px 0 4px">Paint height (each step = ½ m)</div>
+      <div class="heights" id="heights"></div>
+    </div>
+    <div class="card section">
+      <h2>Place</h2>
+      <div id="palette" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+  </aside>
+
+  <main id="stage">
+    <div class="viewtoggle">
+      <button class="btn on" id="v2d">Grid</button>
+      <button class="btn" id="v3d">3D preview</button>
+    </div>
+    <canvas id="view2d"></canvas>
+    <canvas id="view3d"></canvas>
+    <div class="toast card" id="toast"></div>
+    <div class="status"><span id="cursorInfo"></span><span id="helpInfo">Left: use tool · Right-drag / Space-drag: pan · Wheel: zoom · R: rotate · Del: delete</span></div>
+  </main>
+
+  <aside class="right">
+    <div class="card section">
+      <h2>Selected</h2>
+      <div id="props"><div class="hint">Use the <b>Select</b> tool and click something to edit it.</div></div>
+    </div>
+    <div class="card section">
+      <h2>Level</h2>
+      <div class="row"><label>Title</label><input id="title" type="text"></div>
+      <div class="row"><label>Grass</label><input id="groundColor" type="color"></div>
+      <div class="row"><label>Size</label><input id="sizeW" type="number" min="8" max="64" style="width:56px"> × <input id="sizeH" type="number" min="8" max="64" style="width:56px"></div>
+      <div class="row"><button class="btn" id="resizeBtn">Resize grid</button></div>
+      <div class="hint">One cell is 2 m. The Meadow is 32 × 30.</div>
+    </div>
+    <div class="card section">
+      <h2>Count</h2>
+      <div class="counts" id="counts"></div>
+      <div class="hint" style="margin-top:6px" id="warnings"></div>
+    </div>
+  </aside>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ------------------------------------------------------------------ catalog
+// Everything you can place. `props` are the editable settings (saved into the level file); Godot reads the same names.
+const CATALOG = {
+  spawn:      { label: "Start",          group: "Play",    color: "#f2788e", unique: true },
+  checkpoint: { label: "Flag",           group: "Play",    color: "#f2788e" },
+  star:       { label: "Bloom Star",     group: "Collect", color: "#ffd86b", props: { reveal: "none", high: 0 } },
+  drop:       { label: "Paint drop",     group: "Collect", color: "#ff9ab5", props: { color: "#ff9ab5", high: 0 } },
+  sticker:    { label: "Sticker",        group: "Collect", color: "#ffd86b", props: { high: 0 } },
+  power:      { label: "Power doodle",   group: "Collect", color: "#dcebff", props: { power: "puffy" } },
+  smudgie:    { label: "Smudgie",        group: "Friends", color: "#26232b", props: { roam: 2 } },
+  friend:     { label: "Doodle friend",  group: "Friends", color: "#c3e2a0", props: { name: "Pal", look: "sprout", color: "#c3e2a0", says: "Hello, little mochi!" } },
+  tree:       { label: "Tree",           group: "Nature",  color: "#a8d8a0", props: { size: 1 } },
+  bush:       { label: "Bush",           group: "Nature",  color: "#9fd0b4" },
+  rock:       { label: "Rock",           group: "Nature",  color: "#cfd3e0", props: { size: 1 } },
+  flowers:    { label: "Flower bed",     group: "Nature",  color: "#ff9ab5" },
+  mushrooms:  { label: "Mushrooms",      group: "Nature",  color: "#f5a35b" },
+  pond:       { label: "Pond",           group: "Nature",  color: "#8fd0f5", props: { radius: 3 } },
+  bouncy:     { label: "Bouncy mushroom",group: "Nature",  color: "#f2788e" },
+  house:      { label: "House",          group: "Build",   color: "#f7d9b0" },
+  fence:      { label: "Fence",          group: "Build",   color: "#fffaf0" },
+  sign:       { label: "Signpost",       group: "Build",   color: "#f3d9b0", props: { text: "This way!" } },
+  platform:   { label: "Floating cloud", group: "Build",   color: "#ffffff", props: { high: 3, size: 3 } },
+};
+const OPTIONS = { reveal: ["none", "drops", "smudgies"], power: ["puffy", "stone"], look: ["sprout", "puff", "pencil"] };
+const PROP_HELP = {
+  reveal: "none = always there · drops = appears when every paint drop is eaten · smudgies = when every Smudgie is cleaned",
+  high: "Height above the ground, in metres",
+};
+const GROUND_TOOLS = [
+  ["select", "Select"], ["raise", "Raise"], ["lower", "Lower"], ["paint", "Paint height"], ["hole", "Hole"], ["erase", "Erase things"],
+];
+const MAX_H = 8;
+
+// ------------------------------------------------------------------ state
+let level = blankLevel(32, 30);
+let tool = "raise", placeType = null, paintHeight = 1, selected = null;
+let undoStack = [], redoStack = [];
+const $ = (id) => document.getElementById(id);
+
+function blankLevel(w, h) {
+  return { version: 1, title: "New Page", w, h, cell: 2, ground: "#e3f1d4", heights: new Array(w * h).fill(0),
+    objects: [{ uid: 1, type: "spawn", x: Math.floor(w / 2), z: h - 4, rot: 0 }] };
+}
+const H = (x, z) => level.heights[z * level.w + x];
+const inside = (x, z) => x >= 0 && z >= 0 && x < level.w && z < level.h;
+const nextUid = () => level.objects.reduce((m, o) => Math.max(m, o.uid), 0) + 1;
+const objAt = (x, z) => level.objects.find((o) => o.x === x && o.z === z);
+
+function snapshot() {
+  undoStack.push(JSON.stringify(level));
+  if (undoStack.length > 80) undoStack.shift();
+  redoStack = [];
+}
+function restore(json) { level = JSON.parse(json); selected = null; changed(false); syncLevelForm(); }
+function undo() { if (!undoStack.length) return; redoStack.push(JSON.stringify(level)); restore(undoStack.pop()); }
+function redo() { if (!redoStack.length) return; undoStack.push(JSON.stringify(level)); restore(redoStack.pop()); }
+
+let dirty3d = true;
+function changed(save = true) {
+  dirty3d = true;
+  if (save) try { localStorage.setItem("mochi-editor-draft", JSON.stringify({ name: $("levelName").value, level })); } catch {}
+  renderProps(); renderCounts(); draw();
+  if (view === "3d") build3d();
+}
+
+// ------------------------------------------------------------------ left panel
+function icon(type, size = 22) {
+  const c = document.createElement("canvas");
+  const dpr = devicePixelRatio || 1;
+  c.width = c.height = size * dpr; c.style.width = c.style.height = size + "px";
+  const g = c.getContext("2d"); g.scale(dpr, dpr);
+  drawIcon(g, type, size / 2, size / 2, size * 0.42, {});
+  return c;
+}
+function buildPanels() {
+  for (const [id, label] of GROUND_TOOLS) {
+    const b = document.createElement("button");
+    b.className = "btn tool"; b.textContent = label; b.dataset.tool = id;
+    b.onclick = () => setTool(id, null);
+    $("groundTools").append(b);
+  }
+  for (let h = -1; h <= MAX_H; h++) {
+    if (h === -1) continue;
+    const b = document.createElement("button");
+    b.className = "btn"; b.textContent = h; b.dataset.h = h;
+    b.onclick = () => { paintHeight = h; setTool("paint", null); };
+    $("heights").append(b);
+  }
+  const groups = {};
+  for (const [type, def] of Object.entries(CATALOG)) (groups[def.group] ||= []).push(type);
+  for (const [group, types] of Object.entries(groups)) {
+    const box = document.createElement("div");
+    box.innerHTML = `<div class="hint" style="margin-bottom:4px">${group}</div>`;
+    const grid = document.createElement("div"); grid.className = "grid2";
+    for (const type of types) {
+      const b = document.createElement("button");
+      b.className = "btn tool"; b.dataset.place = type;
+      b.append(icon(type), Object.assign(document.createElement("span"), { textContent: CATALOG[type].label })); b.title = CATALOG[type].label;
+      b.onclick = () => setTool("place", type);
+      grid.append(b);
+    }
+    box.append(grid); $("palette").append(box);
+  }
+}
+function setTool(t, type) {
+  tool = t; placeType = type;
+  document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("on", b.dataset.tool === t));
+  document.querySelectorAll("[data-place]").forEach((b) => b.classList.toggle("on", b.dataset.place === type));
+  document.querySelectorAll("[data-h]").forEach((b) => b.classList.toggle("on", t === "paint" && +b.dataset.h === paintHeight));
+}
+
+// ------------------------------------------------------------------ right panel
+function renderProps() {
+  const box = $("props");
+  const o = selected && level.objects.find((x) => x.uid === selected);
+  if (!o) { box.innerHTML = '<div class="hint">Use the <b>Select</b> tool and click something to edit it.</div>'; return; }
+  const def = CATALOG[o.type];
+  box.innerHTML = "";
+  const head = document.createElement("div"); head.className = "row";
+  head.append(icon(o.type, 26), Object.assign(document.createElement("b"), { textContent: def.label }));
+  box.append(head);
+  const addRow = (key, input, help) => {
+    const r = document.createElement("div"); r.className = "row";
+    r.append(Object.assign(document.createElement("label"), { textContent: key }), input); box.append(r);
+    if (help) box.append(Object.assign(document.createElement("div"), { className: "hint", textContent: help }));
+  };
+  for (const key of Object.keys(def.props || {})) {
+    let input;
+    const val = o[key] ?? def.props[key];
+    if (OPTIONS[key]) {
+      input = document.createElement("select");
+      for (const v of OPTIONS[key]) input.append(new Option(v, v, false, v === val));
+    } else if (typeof def.props[key] === "number") {
+      input = Object.assign(document.createElement("input"), { type: "number", step: "0.5", value: val });
+    } else if (String(def.props[key]).startsWith("#")) {
+      input = Object.assign(document.createElement("input"), { type: "color", value: val });
+    } else {
+      input = Object.assign(document.createElement("input"), { type: "text", value: val });
+    }
+    input.onchange = () => {
+      snapshot();
+      o[key] = input.type === "number" ? parseFloat(input.value) || 0 : input.value;
+      changed();
+    };
+    addRow(key, input, PROP_HELP[key]);
+  }
+  const rot = document.createElement("div"); rot.className = "row";
+  const rb = Object.assign(document.createElement("button"), { className: "btn", textContent: `Rotate (${o.rot}°)` });
+  rb.onclick = () => rotateSelected();
+  const db = Object.assign(document.createElement("button"), { className: "btn", textContent: "Delete" });
+  db.onclick = () => deleteSelected();
+  rot.append(rb, db); box.append(rot);
+  box.append(Object.assign(document.createElement("div"), { className: "hint", textContent: `Cell ${o.x}, ${o.z} · ground height ${H(o.x, o.z)}` }));
+}
+function rotateSelected() {
+  const o = level.objects.find((x) => x.uid === selected);
+  if (!o) return;
+  snapshot(); o.rot = (o.rot + 90) % 360; changed();
+}
+function deleteSelected() {
+  const i = level.objects.findIndex((x) => x.uid === selected);
+  if (i < 0) return;
+  snapshot(); level.objects.splice(i, 1); selected = null; changed();
+}
+function renderCounts() {
+  const n = {};
+  for (const o of level.objects) n[o.type] = (n[o.type] || 0) + 1;
+  $("counts").innerHTML = ["star", "drop", "sticker", "smudgie", "friend", "checkpoint"]
+    .map((t) => `<span>${CATALOG[t].label}s</span><span>${n[t] || 0}</span>`).join("");
+  const warn = [];
+  if (!n.spawn) warn.push("Add a Start so the mochi knows where to begin.");
+  else { const s = level.objects.find((o) => o.type === "spawn"); if (H(s.x, s.z) < 0) warn.push("The Start is over a hole!"); }
+  if (!n.star) warn.push("No Bloom Stars yet: they're the goal of a page.");
+  for (const o of level.objects) if (o.type !== "platform" && H(o.x, o.z) < 0 && !(o.high > 0)) { warn.push(`${CATALOG[o.type].label} at ${o.x}, ${o.z} is over a hole.`); break; }
+  $("warnings").textContent = warn.join(" ");
+}
+function syncLevelForm() {
+  $("title").value = level.title; $("groundColor").value = level.ground;
+  $("sizeW").value = level.w; $("sizeH").value = level.h;
+}
+
+// ------------------------------------------------------------------ 2D grid view
+const cv = $("view2d"), g = cv.getContext("2d");
+let cam = { x: 0, y: 0, s: 22 };  // screen offset of cell (0,0) and pixels per cell
+let hover = null;
+
+function fit() {
+  const r = cv.getBoundingClientRect();
+  if (r.width < 50) return;  // hidden (3D view showing)
+  cam.s = Math.max(8, Math.min((r.width - 60) / level.w, (r.height - 70) / level.h));
+  cam.x = (r.width - level.w * cam.s) / 2; cam.y = (r.height - level.h * cam.s) / 2 + 10;
+}
+function resize() {
+  const r = $("stage").getBoundingClientRect(), dpr = devicePixelRatio || 1;  // the stage: either canvas may be hidden
+  cv.width = r.width * dpr; cv.height = r.height * dpr;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+  if (renderer) { renderer.setSize(r.width, r.height, false); camera3.aspect = r.width / r.height; camera3.updateProjectionMatrix(); }
+}
+function shade(hex, k) {  // k < 1 darkens, > 1 lightens
+  const n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return "rgb(" + c.map((v) => Math.round(k < 1 ? v * k : v + (255 - v) * (k - 1))).join(",") + ")";
+}
+function draw() {
+  const r = cv.getBoundingClientRect();
+  g.clearRect(0, 0, r.width, r.height);
+  const s = cam.s;
+  // ground: higher cells are darker; holes show the blank page below
+  for (let z = 0; z < level.h; z++) for (let x = 0; x < level.w; x++) {
+    const h = H(x, z), px = cam.x + x * s, pz = cam.y + z * s;
+    if (h < 0) {
+      g.fillStyle = "#d9d4ca"; g.fillRect(px, pz, s, s);
+      g.strokeStyle = "#c9c3b7"; g.beginPath(); g.moveTo(px, pz + s); g.lineTo(px + s, pz); g.stroke();
+      continue;
+    }
+    g.fillStyle = shade(level.ground, 1 - h * 0.07); g.fillRect(px, pz, s, s);
+    if (h > 0 && s > 14) { g.fillStyle = "rgba(31,29,36,.45)"; g.font = `${Math.min(11, s * 0.45)}px system-ui`; g.fillText(h, px + 2, pz + s - 3); }
+  }
+  g.strokeStyle = "rgba(31,29,36,.10)"; g.lineWidth = 1;
+  g.beginPath();
+  for (let x = 0; x <= level.w; x++) { g.moveTo(cam.x + x * s + 0.5, cam.y); g.lineTo(cam.x + x * s + 0.5, cam.y + level.h * s); }
+  for (let z = 0; z <= level.h; z++) { g.moveTo(cam.x, cam.y + z * s + 0.5); g.lineTo(cam.x + level.w * s, cam.y + z * s + 0.5); }
+  g.stroke();
+  // ink edges where the height changes (cliffs) and around holes
+  g.strokeStyle = "#1f1d24"; g.lineWidth = 2; g.beginPath();
+  for (let z = 0; z < level.h; z++) for (let x = 0; x < level.w; x++) {
+    const h = H(x, z), px = cam.x + x * s, pz = cam.y + z * s;
+    if (x + 1 < level.w && H(x + 1, z) !== h) { g.moveTo(px + s, pz); g.lineTo(px + s, pz + s); }
+    if (z + 1 < level.h && H(x, z + 1) !== h) { g.moveTo(px, pz + s); g.lineTo(px + s, pz + s); }
+  }
+  g.strokeRect(cam.x, cam.y, level.w * s, level.h * s);
+  g.stroke();
+  // things
+  for (const o of level.objects) {
+    const cx = cam.x + (o.x + 0.5) * s, cz = cam.y + (o.z + 0.5) * s;
+    if (o.type === "pond") {
+      g.fillStyle = "rgba(143,208,245,.55)"; g.strokeStyle = "#1f1d24"; g.lineWidth = 1.5;
+      g.beginPath(); g.ellipse(cx, cz, (o.radius ?? 3) / level.cell * s, (o.radius ?? 3) / level.cell * s * 0.8, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+    if (o.type === "smudgie") {
+      g.strokeStyle = "rgba(38,35,43,.35)"; g.setLineDash([3, 3]); g.lineWidth = 1;
+      g.beginPath(); g.arc(cx, cz, (o.roam ?? 2) / level.cell * s, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    }
+  }
+  for (const o of level.objects) {
+    const cx = cam.x + (o.x + 0.5) * s, cz = cam.y + (o.z + 0.5) * s;
+    if (o.uid === selected) {
+      g.strokeStyle = "#e3789a"; g.lineWidth = 3;
+      g.strokeRect(cam.x + o.x * s + 1.5, cam.y + o.z * s + 1.5, s - 3, s - 3);
+    }
+    drawIcon(g, o.type, cx, cz, s * 0.4, o);
+    if ((o.high ?? 0) > 0 && s > 14) { g.fillStyle = "#1f1d24"; g.font = `bold ${Math.min(10, s * 0.4)}px system-ui`; g.fillText("↑" + o.high, cam.x + o.x * s + s - 14, cam.y + o.z * s + 10); }
+  }
+  // brush preview
+  if (hover && inside(hover.x, hover.z)) {
+    const b = tool === "place" || tool === "select" || tool === "erase" ? 1 : +$("brush").value;
+    const x0 = hover.x - Math.floor((b - 1) / 2), z0 = hover.z - Math.floor((b - 1) / 2);
+    g.strokeStyle = "#e3789a"; g.lineWidth = 2; g.setLineDash([4, 3]);
+    g.strokeRect(cam.x + x0 * s, cam.y + z0 * s, b * s, b * s); g.setLineDash([]);
+    if (tool === "place" && placeType) { g.globalAlpha = 0.45; drawIcon(g, placeType, cam.x + (hover.x + 0.5) * s, cam.y + (hover.z + 0.5) * s, s * 0.4, {}); g.globalAlpha = 1; }
+  }
+}
+function drawIcon(g, type, x, y, r, o) {
+  const def = CATALOG[type], ink = "#1f1d24";
+  g.save(); g.translate(x, y); g.rotate(((o.rot || 0) * Math.PI) / 180);
+  g.lineWidth = Math.max(1.2, r * 0.14); g.strokeStyle = ink; g.lineJoin = "round";
+  const fill = (c) => { g.fillStyle = c; g.fill(); g.stroke(); };
+  const circle = (cx, cy, rr) => { g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); };
+  const star = (rr, inner) => { g.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, q = k % 2 ? rr * inner : rr; g.lineTo(Math.cos(a) * q, Math.sin(a) * q); } g.closePath(); };
+  switch (type) {
+    case "spawn": circle(0, 0, r * 0.9); fill("#f8c4cf"); g.beginPath(); g.moveTo(0, -r * 0.5); g.lineTo(r * 0.35, r * 0.2); g.lineTo(-r * 0.35, r * 0.2); g.closePath(); fill(ink); break;
+    case "checkpoint": g.beginPath(); g.moveTo(-r * 0.4, r * 0.9); g.lineTo(-r * 0.4, -r * 0.9); g.stroke(); g.beginPath(); g.moveTo(-r * 0.4, -r * 0.9); g.lineTo(r * 0.7, -r * 0.5); g.lineTo(-r * 0.4, -r * 0.1); g.closePath(); fill("#f2788e"); break;
+    case "star": star(r, 0.45); fill("#ffd86b"); if (o.reveal && o.reveal !== "none") { g.fillStyle = ink; g.font = `bold ${r * 0.8}px system-ui`; g.textAlign = "center"; g.fillText("?", 0, r * 0.3); } break;
+    case "drop": g.beginPath(); g.moveTo(0, -r); g.quadraticCurveTo(r * 0.8, 0, 0, r * 0.8); g.quadraticCurveTo(-r * 0.8, 0, 0, -r); fill(o.color || def.color); break;
+    case "sticker": star(r * 0.7, 0.45); fill("#ffe9a8"); break;
+    case "power": if ((o.power || "puffy") === "stone") { circle(0, 0, r * 0.6); fill("#9ea2b2"); } else { circle(-r * 0.3, 0, r * 0.45); fill("#fff"); circle(r * 0.3, -r * 0.1, r * 0.5); fill("#fff"); } break;
+    case "smudgie": circle(0, 0, r * 0.75); fill("#26232b"); g.fillStyle = "#fff"; circle(-r * 0.25, -r * 0.1, r * 0.18); g.fill(); circle(r * 0.25, -r * 0.1, r * 0.18); g.fill(); break;
+    case "friend": circle(0, 0, r * 0.8); fill(o.color || def.color); g.fillStyle = ink; circle(-r * 0.25, -r * 0.05, r * 0.1); g.fill(); circle(r * 0.25, -r * 0.05, r * 0.1); g.fill(); g.font = `bold ${r * 0.7}px system-ui`; g.textAlign = "center"; g.fillStyle = "#e3789a"; g.fillText("!", r * 0.75, -r * 0.55); break;
+    case "tree": circle(0, 0, r * (0.75 + 0.15 * ((o.size ?? 1) - 1))); fill("#a8d8a0"); circle(0, 0, r * 0.18); fill("#d9b38c"); break;
+    case "bush": circle(-r * 0.3, r * 0.1, r * 0.45); fill("#9fd0b4"); circle(r * 0.3, r * 0.1, r * 0.45); fill("#9fd0b4"); circle(0, -r * 0.25, r * 0.45); fill("#9fd0b4"); break;
+    case "rock": g.beginPath(); g.ellipse(0, 0, r * 0.75, r * 0.5, 0, 0, Math.PI * 2); fill("#cfd3e0"); break;
+    case "flowers": for (const [dx, dy, c] of [[-0.4, -0.3, "#ff9ab5"], [0.35, -0.35, "#ffd86b"], [0, 0.3, "#b9a2ee"], [-0.45, 0.45, "#8fd0f5"], [0.45, 0.35, "#ffb38a"]]) { circle(dx * r, dy * r, r * 0.22); fill(c); } break;
+    case "mushrooms": for (const [dx, dy] of [[-0.35, 0.2], [0.35, 0.25], [0, -0.3]]) { g.beginPath(); g.arc(dx * r, dy * r, r * 0.32, Math.PI, 0); g.closePath(); fill("#f5a35b"); } break;
+    case "pond": circle(0, 0, r * 0.35); fill("#8fd0f5"); break;
+    case "bouncy": circle(0, 0, r * 0.85); fill("#f2788e"); g.fillStyle = "#fff"; for (const [dx, dy] of [[-0.35, -0.2], [0.3, 0.25], [0.1, -0.45]]) { circle(dx * r, dy * r, r * 0.14); g.fill(); } break;
+    case "house": g.beginPath(); g.rect(-r * 0.7, -r * 0.5, r * 1.4, r * 1.1); fill("#f7d9b0"); g.beginPath(); g.moveTo(-r * 0.9, -r * 0.45); g.lineTo(0, -r * 1.0); g.lineTo(r * 0.9, -r * 0.45); g.closePath(); fill("#e88f8f"); break;
+    case "fence": g.beginPath(); g.rect(-r, -r * 0.12, r * 2, r * 0.24); fill("#fffaf0"); for (const dx of [-0.8, 0, 0.8]) { g.beginPath(); g.rect(dx * r - r * 0.1, -r * 0.3, r * 0.2, r * 0.6); fill("#fffaf0"); } break;
+    case "sign": g.beginPath(); g.rect(-r * 0.8, -r * 0.6, r * 1.6, r * 0.7); fill("#f3d9b0"); g.beginPath(); g.moveTo(0, r * 0.1); g.lineTo(0, r * 0.9); g.stroke(); break;
+    case "platform": circle(-r * 0.35, 0, r * 0.5); fill("#ffffff"); circle(r * 0.35, 0, r * 0.5); fill("#ffffff"); circle(0, -r * 0.3, r * 0.5); fill("#ffffff"); break;
+  }
+  g.restore();
+}
+
+// ------------------------------------------------------------------ editing with the mouse
+function cellAt(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: Math.floor((e.clientX - r.left - cam.x) / cam.s), z: Math.floor((e.clientY - r.top - cam.y) / cam.s) };
+}
+let painting = false, panning = null, spaceDown = false, strokeTouched = null, lastCell = null;
+function applyAt(c, first) {
+  if (!inside(c.x, c.z)) return;
+  if (tool === "select") {
+    const o = objAt(c.x, c.z);
+    selected = o ? o.uid : null;
+    if (o && first) dragging = { uid: o.uid, moved: false };
+    changed(false); return;
+  }
+  if (tool === "place") {
+    if (!first) return;
+    const existing = objAt(c.x, c.z);
+    snapshot();
+    if (existing) level.objects.splice(level.objects.indexOf(existing), 1);
+    const def = CATALOG[placeType];
+    if (def.unique) level.objects = level.objects.filter((o) => o.type !== placeType);
+    const o = { uid: nextUid(), type: placeType, x: c.x, z: c.z, rot: 0, ...structuredClone(def.props || {}) };
+    level.objects.push(o);
+    selected = o.uid;
+    changed(); return;
+  }
+  if (tool === "erase") {
+    const o = objAt(c.x, c.z);
+    if (!o) return;
+    if (!strokeTouched.has("snap")) { snapshot(); strokeTouched.add("snap"); }  // one undo step per erase stroke
+    level.objects.splice(level.objects.indexOf(o), 1);
+    changed(); return;
+  }
+  // ground tools: each cell changes once per stroke
+  const b = +$("brush").value, x0 = c.x - Math.floor((b - 1) / 2), z0 = c.z - Math.floor((b - 1) / 2);
+  if (first) snapshot();
+  let any = false;
+  for (let z = z0; z < z0 + b; z++) for (let x = x0; x < x0 + b; x++) {
+    if (!inside(x, z) || strokeTouched.has(x + "," + z)) continue;
+    strokeTouched.add(x + "," + z);
+    const i = z * level.w + x, h = level.heights[i];
+    if (tool === "raise") level.heights[i] = Math.min(MAX_H, Math.max(0, h) + (h < 0 ? 0 : 1));
+    else if (tool === "lower") level.heights[i] = h <= 0 ? h : h - 1;
+    else if (tool === "paint") level.heights[i] = paintHeight;
+    else if (tool === "hole") level.heights[i] = -1;
+    any = true;
+  }
+  if (any) changed();
+}
+let dragging = null;
+cv.addEventListener("contextmenu", (e) => e.preventDefault());
+cv.addEventListener("pointerdown", (e) => {
+  cv.setPointerCapture(e.pointerId);
+  if (e.button === 2 || e.button === 1 || spaceDown) { userMoved = true; panning = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; return; }
+  if (e.button !== 0) return;
+  painting = true; strokeTouched = new Set(); lastCell = cellAt(e);
+  applyAt(cellAt(e), true);
+});
+cv.addEventListener("pointermove", (e) => {
+  if (panning) { cam.x = panning.cx + e.clientX - panning.x; cam.y = panning.cy + e.clientY - panning.y; draw(); return; }
+  const c = cellAt(e);
+  const moved = !hover || hover.x !== c.x || hover.z !== c.z;
+  hover = c;
+  if (inside(c.x, c.z)) {
+    const o = objAt(c.x, c.z);
+    $("cursorInfo").textContent = `Cell ${c.x}, ${c.z} · height ${H(c.x, c.z) < 0 ? "hole" : H(c.x, c.z)}${o ? " · " + CATALOG[o.type].label : ""}`;
+  } else $("cursorInfo").textContent = "";
+  if (painting && moved) {
+    if (dragging) {  // drag the selected thing to a free cell
+      if (inside(c.x, c.z) && !objAt(c.x, c.z)) {
+        const o = level.objects.find((x) => x.uid === dragging.uid);
+        if (!dragging.moved) { snapshot(); dragging.moved = true; }
+        o.x = c.x; o.z = c.z; changed();
+      }
+    } else if (tool !== "place" && tool !== "select") {  // fill every cell between the last spot and this one
+      const from = lastCell || c, steps = Math.max(Math.abs(c.x - from.x), Math.abs(c.z - from.z), 1);
+      for (let k = 1; k <= steps; k++) applyAt({ x: Math.round(from.x + (c.x - from.x) * k / steps), z: Math.round(from.z + (c.z - from.z) * k / steps) }, false);
+    }
+    lastCell = c;
+  }
+  if (moved) draw();
+});
+const stop = () => { painting = false; panning = null; dragging = null; };
+cv.addEventListener("pointerup", stop);
+cv.addEventListener("pointerleave", () => { hover = null; draw(); });
+cv.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  userMoved = true;
+  const k = Math.exp(-e.deltaY * 0.0015), ns = Math.max(6, Math.min(80, cam.s * k));
+  cam.x = mx - (mx - cam.x) * (ns / cam.s); cam.y = my - (my - cam.y) * (ns / cam.s); cam.s = ns;
+  draw();
+}, { passive: false });
+addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select")) return;
+  if (e.code === "Space") { spaceDown = true; e.preventDefault(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
+  else if (e.key === "r" || e.key === "R") rotateSelected();
+  else if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
+  else if (e.key === "Escape") { selected = null; setTool("select", null); changed(false); }
+  else if (/^[0-8]$/.test(e.key)) { paintHeight = +e.key; setTool("paint", null); }
+});
+addEventListener("keyup", (e) => { if (e.code === "Space") spaceDown = false; });
+
+// ------------------------------------------------------------------ 3D preview (same sizes as the game)
+let renderer, scene, camera3, controls, view = "2d", worldGroup;
+function init3d() {
+  renderer = new THREE.WebGLRenderer({ canvas: $("view3d"), antialias: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  scene = new THREE.Scene(); scene.background = new THREE.Color("#ebe7df");
+  scene.fog = new THREE.Fog("#ebe7df", 60, 140);
+  camera3 = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
+  camera3.position.set(0, 45, 55);
+  controls = new OrbitControls(camera3, $("view3d"));
+  controls.enableDamping = true;
+  scene.add(new THREE.HemisphereLight("#ffffff", "#c9c2d6", 1.3));
+  const sun = new THREE.DirectionalLight("#ffffff", 1.1); sun.position.set(20, 40, 15); scene.add(sun);
+  frame3d();
+  resize();
+  renderer.setAnimationLoop(() => { if (view === "3d") { controls.update(); renderer.render(scene, camera3); } });
+}
+const mat = (c) => new THREE.MeshToonMaterial({ color: c });
+const outlineMat = new THREE.MeshBasicMaterial({ color: "#1f1d24", side: THREE.BackSide });
+function inked(geo, color, scale = 1.06) {
+  const m = new THREE.Mesh(geo, mat(color));
+  const o = new THREE.Mesh(geo, outlineMat); o.scale.setScalar(scale); m.add(o);
+  return m;
+}
+function frame3d() {  // look at the whole page from the south, a bit above
+  const size = Math.max(level.w, level.h) * level.cell;
+  camera3.position.set(0, size * 0.95, size * 1.05); controls.target.set(0, 0, 0); controls.update();
+}
+function build3d() {
+  if (!scene) init3d();
+  if (!dirty3d) return;
+  dirty3d = false;
+  if (worldGroup) scene.remove(worldGroup);
+  worldGroup = new THREE.Group(); scene.add(worldGroup);
+  const c = level.cell, wx = (x) => (x - level.w / 2 + 0.5) * c, wz = (z) => (z - level.h / 2 + 0.5) * c;
+  const top = (x, z) => Math.max(0, H(x, z)) * 0.5;
+  for (let z = 0; z < level.h; z++) for (let x = 0; x < level.w; x++) {
+    const h = H(x, z);
+    if (h < 0) continue;
+    const d = h * 0.5 + 0.9;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(c, d, c), mat(shade(level.ground, 1 - h * 0.05)));
+    box.position.set(wx(x), h * 0.5 - d / 2, wz(z));
+    worldGroup.add(box);
+  }
+  const edges = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: "#1f1d24" }));
+  const pts = [];
+  for (let z = 0; z <= level.h; z++) for (let x = 0; x <= level.w; x++) {  // ink lines along cliff tops
+    const here = inside(x, z) ? H(x, z) : -2;
+    if (x > 0) { const l = inside(x - 1, z) ? H(x - 1, z) : -2; if (l !== here && inside(x, z) || (l !== here && inside(x - 1, z))) { const y = Math.max(l, here) * 0.5 + 0.01; pts.push(wx(x) - c / 2, y, wz(z) - c / 2, wx(x) - c / 2, y, wz(z) + c / 2); } }
+    if (z > 0) { const u = inside(x, z - 1) ? H(x, z - 1) : -2; if (u !== here && (inside(x, z) || inside(x, z - 1))) { const y = Math.max(u, here) * 0.5 + 0.01; pts.push(wx(x) - c / 2, y, wz(z) - c / 2, wx(x) + c / 2, y, wz(z) - c / 2); } }
+  }
+  edges.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+  worldGroup.add(edges);
+  for (const o of level.objects) {
+    const g = new THREE.Group();
+    g.position.set(wx(o.x), top(o.x, o.z) + (o.type === "platform" ? 0 : (o.high || 0)), wz(o.z));
+    g.rotation.y = -(o.rot || 0) * Math.PI / 180;
+    const add = (m, y = 0, x = 0, zz = 0) => { m.position.set(x, y, zz); g.add(m); return m; };
+    switch (o.type) {
+      case "spawn": add(inked(new THREE.SphereGeometry(0.45, 16, 10), "#f8c4cf"), 0.4).scale.set(1, 0.8, 1); break;
+      case "checkpoint": add(inked(new THREE.CylinderGeometry(0.04, 0.04, 1.1), "#c99a6a"), 0.55); add(inked(new THREE.ConeGeometry(0.26, 0.5, 3), "#f2788e"), 0.95, 0.2).rotation.z = -Math.PI / 2; break;
+      case "star": add(inked(new THREE.OctahedronGeometry(0.45), "#ffd86b"), 0.9); break;
+      case "drop": add(inked(new THREE.SphereGeometry(0.22, 12, 8), o.color || "#ff9ab5"), 0.55); break;
+      case "sticker": add(inked(new THREE.OctahedronGeometry(0.22), "#ffe9a8"), 0.55); break;
+      case "power": add(inked(new THREE.CylinderGeometry(0.2, 0.24, 0.28), "#e6c79c"), 0.14); add(inked(new THREE.SphereGeometry(0.22, 12, 8), o.power === "stone" ? "#9ea2b2" : "#ffffff"), 0.7); break;
+      case "smudgie": add(inked(new THREE.SphereGeometry(0.28, 12, 8), "#26232b"), 0.22).scale.set(1.2, 0.8, 1); break;
+      case "friend": add(inked(new THREE.SphereGeometry(0.42, 14, 10), o.color || "#c3e2a0"), 0.45).scale.set(0.85, 1.1, 0.85); break;
+      case "tree": { const s = o.size ?? 1; add(inked(new THREE.CylinderGeometry(0.09 * s, 0.14 * s, 0.95 * s), "#d9b38c"), 0.47 * s); add(inked(new THREE.SphereGeometry(0.62 * s, 12, 8), "#a8d8a0"), 1.4 * s); break; }
+      case "bush": add(inked(new THREE.SphereGeometry(0.6, 12, 8), "#9fd0b4"), 0.45).scale.set(1.3, 0.8, 1.1); break;
+      case "rock": add(inked(new THREE.SphereGeometry(0.4 * (o.size ?? 1), 7, 4), "#cfd3e0"), 0.2).scale.set(1.25, 0.7, 1); break;
+      case "flowers": for (let k = 0; k < 8; k++) add(inked(new THREE.SphereGeometry(0.1, 6, 4), ["#ff9ab5", "#ffd86b", "#b9a2ee", "#8fd0f5"][k % 4]), 0.35, Math.cos(k * 2.4) * 0.7 * (k % 3 + 1) / 3, Math.sin(k * 2.4) * 0.7 * (k % 3 + 1) / 3); break;
+      case "mushrooms": for (let k = 0; k < 4; k++) add(inked(new THREE.SphereGeometry(0.25, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), "#f5a35b"), 0.3, Math.cos(k * 1.6) * 0.5, Math.sin(k * 1.6) * 0.5); break;
+      case "pond": add(new THREE.Mesh(new THREE.CylinderGeometry(o.radius ?? 3, o.radius ?? 3, 0.04, 32), mat("#8fd0f5")), 0.03).scale.set(1, 1, 0.8); break;
+      case "bouncy": add(inked(new THREE.CylinderGeometry(0.35, 0.45, 0.8), "#fff1dc"), 0.4); add(inked(new THREE.SphereGeometry(1.1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), "#f2788e"), 0.7).scale.set(1, 0.45, 1); break;
+      case "house": add(inked(new THREE.BoxGeometry(1.6, 1.4, 1.3), "#f7d9b0"), 0.7); add(inked(new THREE.ConeGeometry(1.25, 0.85, 4), "#e88f8f"), 1.85).rotation.y = Math.PI / 4; break;
+      case "fence": add(inked(new THREE.BoxGeometry(2, 0.1, 0.06), "#fffaf0"), 0.5); add(inked(new THREE.BoxGeometry(2, 0.1, 0.06), "#fffaf0"), 0.25); for (const dx of [-0.9, 0, 0.9]) add(inked(new THREE.BoxGeometry(0.12, 0.7, 0.12), "#fffaf0"), 0.35, dx); break;
+      case "sign": add(inked(new THREE.CylinderGeometry(0.06, 0.07, 1.3), "#c99a6a"), 0.65); add(inked(new THREE.BoxGeometry(1.3, 0.42, 0.08), "#f3d9b0"), 1.2); break;
+      case "platform": { const s = o.size ?? 3; add(inked(new THREE.BoxGeometry(s, 0.6, s), "#ffffff"), (o.high ?? 3) - 0.3); break; }
+    }
+    worldGroup.add(g);
+  }
+}
+function setView(v) {
+  view = v;
+  $("view2d").style.display = v === "2d" ? "block" : "none";
+  $("view3d").style.display = v === "3d" ? "block" : "none";
+  $("v2d").classList.toggle("on", v === "2d"); $("v3d").classList.toggle("on", v === "3d");
+  $("helpInfo").textContent = v === "2d" ? "Left: use tool · Right-drag / Space-drag: pan · Wheel: zoom · R: rotate · Del: delete · 0-8: paint height"
+    : "Drag: orbit · Right-drag: pan · Wheel: zoom";
+  if (v === "3d") { build3d(); resize(); } else resize();
+}
+
+// ------------------------------------------------------------------ files
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.style.display = "block";
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.display = "none"), 2200);
+}
+function levelName() {
+  const n = $("levelName").value.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{1,40}$/.test(n)) { toast("Level names use a-z, 0-9, - and _"); return null; }
+  return n;
+}
+async function api(method, path, data) {
+  const r = await fetch(path, { method, headers: { "content-type": "application/json" }, body: data ? JSON.stringify(data) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+async function refreshList() {
+  try {
+    const names = await api("GET", "/api/levels");
+    const sel = $("levelList"); sel.length = 1;
+    for (const n of names) sel.append(new Option(n, n));
+  } catch { /* opened without the server: saving falls back to Download */ }
+}
+async function save() {
+  const n = levelName(); if (!n) return false;
+  try { await api("PUT", "/api/levels/" + n, level); toast(`Saved ${n}`); refreshList(); return true; }
+  catch (e) { toast("Couldn't save (is editor/serve.mjs running?) " + e.message); return false; }
+}
+$("saveBtn").onclick = save;
+$("playBtn").onclick = async () => {
+  if (!(await save())) return;
+  try { await api("POST", "/api/play/" + levelName()); toast("Opening Godot…"); }
+  catch (e) { toast("Couldn't start Godot: " + e.message); }
+};
+$("levelList").onchange = async (e) => {
+  const n = e.target.value; e.target.value = "";
+  if (!n) return;
+  try { snapshot(); level = await api("GET", "/api/levels/" + n); $("levelName").value = n; selected = null; syncLevelForm(); fit(); if (controls) frame3d(); changed(); toast(`Opened ${n}`); }
+  catch (err) { toast("Couldn't open: " + err.message); }
+};
+$("newBtn").onclick = () => { if (!confirm("Start a new empty level? (Undo can bring this one back.)")) return; snapshot(); level = blankLevel(32, 30); selected = null; syncLevelForm(); fit(); changed(); };
+$("exportBtn").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(level, null, 1)], { type: "application/json" }));
+  a.download = (levelName() || "level") + ".json"; a.click(); URL.revokeObjectURL(a.href);
+};
+$("importFile").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const data = JSON.parse(await f.text()); if (!data.heights || !data.objects) throw new Error("not a level file");
+    snapshot(); level = data; $("levelName").value = f.name.replace(/\.json$/, ""); selected = null; syncLevelForm(); fit(); changed(); }
+  catch (err) { toast("Couldn't import: " + err.message); }
+  e.target.value = "";
+};
+$("undoBtn").onclick = undo; $("redoBtn").onclick = redo;
+$("title").onchange = () => { snapshot(); level.title = $("title").value; changed(); };
+$("groundColor").onchange = () => { snapshot(); level.ground = $("groundColor").value; changed(); };
+$("resizeBtn").onclick = () => {
+  const w = Math.max(8, Math.min(64, +$("sizeW").value | 0)), h = Math.max(8, Math.min(64, +$("sizeH").value | 0));
+  snapshot();
+  const heights = new Array(w * h).fill(0);
+  for (let z = 0; z < Math.min(h, level.h); z++) for (let x = 0; x < Math.min(w, level.w); x++) heights[z * w + x] = H(x, z);
+  level.heights = heights; level.w = w; level.h = h;
+  level.objects = level.objects.filter((o) => o.x < w && o.z < h);
+  fit(); changed();
+};
+$("v2d").onclick = () => setView("2d");
+$("v3d").onclick = () => setView("3d");
+
+// ------------------------------------------------------------------ start
+buildPanels();
+try {
+  const d = JSON.parse(localStorage.getItem("mochi-editor-draft") || "null");
+  if (d && d.level && d.level.heights) { level = d.level; $("levelName").value = d.name || "village"; }
+} catch {}
+syncLevelForm();
+setTool("raise", null);
+let userMoved = false;  // keep the grid fitted to the window until the user pans or zooms
+new ResizeObserver(() => { if (!userMoved) fit(); resize(); }).observe($("stage"));
+fit(); resize(); changed(false); refreshList();
+</script>
+</body>
+</html>

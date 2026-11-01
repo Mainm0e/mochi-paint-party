@@ -109,6 +109,25 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--autotest="):
 			_autotest(a.trim_prefix("--autotest="))
+		if a.begins_with("--level="):  # straight into a page (the level editor's Play button)
+			if not has_mochi:
+				has_mochi = true
+				save.look = mochi.look
+			enter_level(a.trim_prefix("--level="))
+			set_mode(Mode.PLAY)
+		if a.begins_with("--shot="):  # save a screenshot a moment after starting, then quit (checks)
+			await get_tree().create_timer(2.5).timeout
+			if "--overview" in OS.get_cmdline_user_args():  # from high above instead of behind the mochi
+				cinematic = true
+				ui.visible = false
+				environment.fog_depth_end = 200.0
+				camera.position = Vector3(0, 48, 52)
+				camera.look_at(Vector3.ZERO)
+				await get_tree().create_timer(0.2).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(a.trim_prefix("--shot="))
+			print("SHOT %s: mochi at %s (scale %s, bob %s), camera at %s" % [world.level, mochi.global_position, mochi.scale, mochi.bob.scale, camera.global_position])
+			get_tree().quit()
 		if a.begins_with("--worldmap="):
 			_worldmap_shots(a.trim_prefix("--worldmap="))
 
@@ -249,7 +268,7 @@ func enter_level(name: String) -> void:
 	if on_map:  # the map shows what is painted, where the mochi last was, and what was just finished
 		world.map_stars = {}
 		for s in World.STAMPS:
-			if s[5] != "":
+			if world.page_exists(s[5]):
 				world.map_stars[s[0]] = _stars(s[5])
 		world.map_done = World.STAMPS.filter(func(s): return world.map_stars.get(s[0], 0) >= World.STARS_TO_OPEN) \
 			.map(func(s): return s[0])
@@ -261,7 +280,7 @@ func enter_level(name: String) -> void:
 	mochi.size = 1.7 if on_map else 1.0
 	mochi.scale = Vector3.ONE * mochi.size
 	cam_dist = 10.0 if on_map else 4.2
-	var open_page := name in World.PAGE_STARS  # open pages are big: see further across them
+	var open_page := not name in ["home", "worldmap"]  # pages are big and open: see further across them
 	environment.fog_depth_begin = 40.0 if on_map else (28.0 if open_page else 16.0)
 	environment.fog_depth_end = 90.0 if on_map else (70.0 if open_page else 38.0)
 	mochi.redraw_at(world.spawn_point())
@@ -298,8 +317,8 @@ func _refresh_hud() -> void:
 	var got: int = save.stickers.filter(func(s): return String(s).begins_with(world.level + ":")).size() if page \
 		else save.stickers.size()
 	sticker_label.text = "Stickers  %d / %d" % [got, 5 if page else world.PAGES.size() * 5]
-	if world.level in World.PAGE_STARS:
-		sticker_label.text = "Bloom Stars  %d / %d\n%s" % [_stars(world.level), World.PAGE_STARS[world.level], sticker_label.text]
+	if world.page_stars(world.level) > 0:
+		sticker_label.text = "Bloom Stars  %d / %d\n%s" % [_stars(world.level), world.page_stars(world.level), sticker_label.text]
 	home_btn.visible = page
 	_on_power_changed(mochi.power, false)
 
@@ -790,7 +809,7 @@ func _on_ate(kind: String, e: Dictionary) -> void:
 			audio.play("win", 0.0, 0.0)
 			_refresh_hud()
 			var n := _stars(world.level)
-			_toast("Bloom Star!  %d / %d" % [n, World.PAGE_STARS.get(world.level, n)])
+			_toast("Bloom Star!  %d / %d" % [n, world.page_stars(world.level)])
 			if n == World.STARS_TO_OPEN:
 				ps.done = true
 				_just_done = world.level  # the map celebrates the newly opened path
@@ -799,7 +818,7 @@ func _on_ate(kind: String, e: Dictionary) -> void:
 	if kind == "bloom":
 		mochi.emote("Happy")
 		var n := _stars(world.level)
-		var total: int = World.PAGE_STARS.get(world.level, n)
+		var total := world.page_stars(world.level)
 		await get_tree().create_timer(1.6).timeout
 		if n == World.STARS_TO_OPEN:
 			think("A new path opened on the World Map!", 3.0)
@@ -1268,7 +1287,7 @@ func _autotest(dir: String) -> void:
 	# the end of the Ink Trail
 	place.call(Vector3(0, 0.4, -84.0))
 	await star_wait.call(4)
-	print("AUTOTEST stars: %d / %d, page done %s" % [_stars(world.level), World.PAGE_STARS.meadow, _page_save("meadow").done])
+	print("AUTOTEST stars: %d / %d, page done %s" % [_stars(world.level), world.page_stars("meadow"), _page_save("meadow").done])
 	await wait.call(2.0)
 	await shot.call("8_trail")
 	cinematic = true  # a bird's-eye view of the whole open Meadow

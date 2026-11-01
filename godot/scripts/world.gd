@@ -31,6 +31,7 @@ var nest: Array = []                     # Smudgie ids whose cleanup earns b_nes
 var race := {"on": false, "next": 0, "t": 0.0, "hoops": []}
 var flutters: Array[Dictionary] = []     # butterflies
 var _keep: Array = []                    # [x, z, radius] spots props must stay clear of
+var reveals := {}                        # editor pages: hidden star id -> "drops" / "smudgies" (what reveals it)
 var drops: Array[Dictionary] = []        # the paint drops (for the HUD)
 var smudgies: Array[Dictionary] = []
 var checkpoints: Array[Dictionary] = []
@@ -61,6 +62,7 @@ func load_level(name: String, eaten: Array = []) -> void:
 	friends.clear()
 	flutters.clear()
 	_keep.clear()
+	reveals.clear()
 	race = {"on": false, "next": 0, "t": 0.0, "hoops": []}
 	active_checkpoint = 0
 	level = name
@@ -70,15 +72,18 @@ func load_level(name: String, eaten: Array = []) -> void:
 		_build_home()
 	elif name == "worldmap":
 		_build_worldmap()
-	else:
+	elif name == "meadow":
 		_build_meadow()
+	else:
+		_build_json(name)
 	for id in eaten:  # stars already earned stay revealed (or eaten, below)
 		if String(id).begins_with("reveal:"):
 			reveal_bloom(String(id).trim_prefix("reveal:"), true)
 	for e in edibles:
 		if e.id in eaten and e.kind in ["drop", "sticker", "bloom", "item"]:
 			collect(e, true)
-	if level in PAGE_STARS and bloom_ids().all(func(id): return id in eaten):
+	var stars_here := bloom_ids()
+	if not stars_here.is_empty() and stars_here.all(func(id): return id in eaten):
 		_paint_all(true)
 
 
@@ -87,7 +92,9 @@ func spawn_point() -> Vector3:
 
 
 func page_name() -> String:
-	return "World Map" if level == "worldmap" else PAGES.get(level, "Home Page")
+	if level == "worldmap" or level == "home":
+		return "World Map" if level == "worldmap" else "Home Page"
+	return page_title(level)
 
 
 # ================================================================== materials + shapes
@@ -818,10 +825,10 @@ func has_item(id: String) -> bool:
 
 
 ## A doodle friend who lives on the page. Talk (E) for their request; bring back `wants` for a Bloom Star.
-func friend(id: String, pos: Vector3, color: String, title: String, lines: Dictionary, wants: Array) -> void:
+func friend(id: String, pos: Vector3, color: String, title: String, lines: Dictionary, wants: Array, look := "") -> void:
 	var g := Node3D.new()
-	match id:
-		"pip":  # a sprout bean
+	match look if look != "" else {"pip": "sprout", "tufts": "puff"}.get(id, "pencil"):
+		"sprout":  # a sprout bean
 			var body := doodle(_sphere(0.42, 14, 10), color, Vector3(0, 0.45, 0), 0.03)
 			body.scale = Vector3(0.85, 1.1, 0.85)
 			g.add_child(body)
@@ -829,7 +836,7 @@ func friend(id: String, pos: Vector3, color: String, title: String, lines: Dicti
 			var leaf := doodle(_sphere(0.16, 10, 6), "6fae8c", Vector3(0.12, 1.2, 0), 0.015)
 			leaf.scale = Vector3(1.0, 0.35, 0.6)
 			g.add_child(leaf)
-		"tufts":  # a cloud puff on little ink legs
+		"puff":  # a cloud puff on little ink legs
 			for b in [[0.36, 0.0, 0.7, 0.0], [0.28, 0.32, 0.72, 0.05], [0.28, -0.32, 0.72, -0.05], [0.26, 0.0, 0.98, 0.0]]:
 				g.add_child(doodle(_sphere(b[0]), color, Vector3(b[1], b[2], b[3]), 0.03))
 			for lx in [-0.18, 0.18]:
@@ -947,6 +954,165 @@ func _check_tasks() -> void:
 			reveal_bloom("b_nest")
 	if level == "meadow" and drops_left() == 0 and not bloom_shown("b_drops"):
 		reveal_bloom("b_drops")
+	for id in reveals:  # editor pages: stars set to appear when every drop is eaten / every Smudgie cleaned
+		if bloom_shown(id):
+			continue
+		if reveals[id] == "drops" and drops_left() == 0 or reveals[id] == "smudgies" and smudgies.all(func(m): return m.got):
+			reveal_bloom(id)
+
+
+# ================================================================== pages made in the level editor (editor/)
+## A page saved by the web level editor as res://levels/<name>.json: a grid of ground heights (-1 = hole,
+## each step half a metre, cells `cell` metres wide) plus the things placed on it.
+func json_path(page: String) -> String:
+	return "res://levels/%s.json" % page
+
+
+func page_exists(page: String) -> bool:
+	return page in PAGES or (page != "" and FileAccess.file_exists(json_path(page)))
+
+
+func _read_json(page: String) -> Dictionary:
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(json_path(page)))
+	return data if typeof(data) == TYPE_DICTIONARY else {}
+
+
+## Bloom Stars on a page (without building it).
+func page_stars(page: String) -> int:
+	if page in PAGE_STARS:
+		return PAGE_STARS[page]
+	if not page_exists(page):
+		return 0
+	return _read_json(page).get("objects", []).filter(func(o): return o.get("type") == "star").size()
+
+
+func page_title(page: String) -> String:
+	if page in PAGES:
+		return PAGES[page]
+	var t: String = _read_json(page).get("title", "") if page_exists(page) else ""
+	return t if t != "" else page.capitalize()
+
+
+func _build_json(page: String) -> void:
+	var data := _read_json(page)
+	var w: int = data.get("w", 0)
+	var h: int = data.get("h", 0)
+	var cell: float = data.get("cell", 2.0)
+	var heights: Array = data.get("heights", [])
+	var ground := String(data.get("ground", "#e3f1d4")).trim_prefix("#")
+	if w <= 0 or h <= 0 or heights.size() != w * h:
+		push_warning("Level %s is not a valid editor level" % page)
+		island(0, 0, 8, 8, 0.0)
+		checkpoint(Vector3.ZERO)
+		return
+	var hat := func(x: int, z: int) -> int: return int(heights[z * w + x])
+	var to_world := func(x: float, z: float) -> Vector3: return Vector3((x - w / 2.0 + 0.5) * cell, 0, (z - h / 2.0 + 0.5) * cell)
+	# ground: merge cells of the same height into big rectangles (fewer bodies, cleaner ink outlines)
+	var used := PackedByteArray()
+	used.resize(w * h)
+	for z in h:
+		for x in w:
+			var ht: int = hat.call(x, z)
+			if used[z * w + x] or ht < 0:
+				continue
+			var x1 := x
+			while x1 + 1 < w and not used[z * w + x1 + 1] and hat.call(x1 + 1, z) == ht:
+				x1 += 1
+			var z1 := z
+			var grow := true
+			while grow and z1 + 1 < h:
+				for xx in range(x, x1 + 1):
+					if used[(z1 + 1) * w + xx] or hat.call(xx, z1 + 1) != ht:
+						grow = false
+						break
+				if grow:
+					z1 += 1
+			for zz in range(z, z1 + 1):
+				for xx in range(x, x1 + 1):
+					used[zz * w + xx] = 1
+			var c: Vector3 = (to_world.call(x, z) + to_world.call(x1, z1)) / 2.0
+			var top := ht * 0.5
+			var body := island(c.x, c.z, (x1 - x + 1) * cell, (z1 - z + 1) * cell, top, ground, top + ISLAND_DEPTH)
+			var shade := Color(ground).darkened(ht * 0.05)
+			body.get_child(1).set_meta("paint", shade)
+			_paint(body.get_child(1), true)
+	# the start first (it is checkpoint 0), then everything else
+	var objects: Array = data.get("objects", [])
+	objects.sort_custom(func(a, b): return a.get("type") == "spawn" and b.get("type") != "spawn")
+	if objects.is_empty() or objects[0].get("type") != "spawn":
+		objects.push_front({"type": "spawn", "x": w / 2, "z": h / 2})
+	var n := {}
+	for o: Dictionary in objects:
+		var t: String = o.get("type", "")
+		var ox := clampi(int(o.get("x", 0)), 0, w - 1)
+		var oz := clampi(int(o.get("z", 0)), 0, h - 1)
+		var top := maxf(0.0, hat.call(ox, oz) * 0.5)
+		var pos: Vector3 = to_world.call(ox, oz) + Vector3(0, top, 0)
+		var up := Vector3(0, float(o.get("high", 0.0)), 0)
+		var rot := -deg_to_rad(float(o.get("rot", 0.0)))
+		n[t] = n.get(t, 0) + 1
+		var num: int = n[t]
+		var hex := func(key: String, fallback: String) -> String: return String(o.get(key, fallback)).trim_prefix("#")
+		match t:
+			"spawn", "checkpoint":
+				checkpoint(pos)
+			"star":
+				var reveal: String = o.get("reveal", "none")
+				bloom("b_%d" % num, pos + up, reveal != "none")
+				if reveal != "none":
+					reveals["b_%d" % num] = reveal
+			"drop":
+				paint_drop("d%d" % num, pos + up, hex.call("color", "ff9ab5"))
+			"sticker":
+				sticker("s%d" % num, pos + up)
+			"power":
+				power_doodle(o.get("power", "puffy"), pos)
+			"smudgie":
+				smudgie("m%d" % num, pos, float(o.get("roam", 2.0)))
+			"friend":
+				var says: String = o.get("says", "Hello!")
+				var fid := "friend%d" % num
+				friend(fid, pos, hex.call("color", "c3e2a0"), o.get("name", "Pal"), {"ask": says, "done": says, "thanks": says},
+					[], o.get("look", "sprout"))
+				friends[fid].star = ""
+			"tree":
+				_tree(pos, float(o.get("size", 1.0)))
+			"bush":
+				_bush(pos)
+			"rock":
+				place(rock(), pos, float(o.get("size", 1.0)) * 1.2, 0.8, rot, _cyl_shape(0.4, 0.5), Vector3(0, 0.25, 0))
+			"flowers":
+				_scatter(flower, pos, 0.9, 10, 1.0, 1.5)
+			"mushrooms":
+				_scatter(mushroom, pos, 0.8, 5, 0.9, 1.4)
+			"pond":
+				_pond(pos, float(o.get("radius", 3.0)))
+			"bouncy":
+				_bouncy(pos)
+			"house":
+				place(house(), pos, 1.2, 2.4, rot, _box_shape(Vector3(1.6, 2.0, 1.3)), Vector3(0, 1.0, 0))
+			"fence":
+				var along := Vector3(cos(rot), 0, -sin(rot)) * cell / 2.0
+				_fence(pos - along, pos + along)
+			"sign":
+				_signpost(pos, o.get("text", ""))
+			"platform":
+				var s := float(o.get("size", 3.0))
+				var cloud_top := top + float(o.get("high", 3.0))
+				var pl := island(pos.x, pos.z, s, s, cloud_top, "ffffff", 0.6)
+				_paint(pl.get_child(1), true)
+				for k in 2:
+					pl.add_child(doodle(_sphere(s * 0.3), "ffffff", Vector3((k * 2 - 1) * s * 0.4, -0.1, (k * 2 - 1) * s * 0.2), 0.03))
+
+
+func _bouncy(pos: Vector3) -> void:
+	var mush := Node3D.new()
+	mush.add_child(doodle(_cyl(0.35, 0.45, 0.8, 10), "fff1dc", Vector3(0, 0.4, 0), 0.03))
+	var cap := doodle(_sphere(1.1, 16, 8, true), "f2788e", Vector3(0, 0.7, 0), 0.04)
+	cap.scale = Vector3(1.0, 0.45, 1.0)
+	mush.add_child(cap)
+	place(mush, pos, 1.0, 1.2, 0.0, _cyl_shape(1.0, 1.2), Vector3(0, 0.6, 0))
+	bouncers.append({"pos": pos + Vector3(0, 1.2, 0), "r": 1.05})
 
 
 # ================================================================== dressing the open Meadow
@@ -1075,22 +1241,23 @@ func _signpost(pos: Vector3, text: String) -> void:
 
 
 ## A pond with lily pads, reeds and a little dock. Flat, so the mochi just walks across the water.
-func _pond(c: Vector3) -> void:
-	var water := doodle(_cyl(4.0, 4.0, 0.04, 32), "8fd0f5", c + Vector3(0, 0.02, 0), 0.04)
+func _pond(c: Vector3, r := 4.0) -> void:
+	var sc := r / 4.0
+	var water := doodle(_cyl(r, r, 0.04, 32), "8fd0f5", c + Vector3(0, 0.02, 0), 0.04)
 	water.scale = Vector3(1.0, 1.0, 0.8)
 	add_child(water)
 	for k in 7:
 		var a := k / 7.0 * TAU + 0.3
-		var pad := doodle(_cyl(0.42, 0.42, 0.03, 12), "8fc98a", c + Vector3(cos(a) * 2.4, 0.05, sin(a) * 1.8), 0.015)
+		var pad := doodle(_cyl(0.42, 0.42, 0.03, 12), "8fc98a", c + Vector3(cos(a) * 2.4 * sc, 0.05, sin(a) * 1.8 * sc), 0.015)
 		add_child(pad)
 		if k % 3 == 0:
 			add_child(doodle(_sphere(0.1, 8, 5), "ff9ab5", pad.position + Vector3(0.12, 0.08, 0), 0.012))
 	for k in 12:
 		var a := rng.randf_range(2.6, 4.4)
 		var reed := doodle(_cyl(0.025, 0.035, rng.randf_range(0.7, 1.2), 5), "6fae8c",
-			c + Vector3(cos(a) * 4.0, 0.45, sin(a) * 3.2) + Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3)), 0.012)
+			c + Vector3(cos(a) * r, 0.45, sin(a) * r * 0.8) + Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3)), 0.012)
 		add_child(reed)
-	var dock := doodle(_box(1.2, 0.12, 2.6), "d9b38c", c + Vector3(2.6, 0.1, -2.6), 0.025, true)
+	var dock := doodle(_box(1.2, 0.12, 2.6), "d9b38c", c + Vector3(2.6, 0.1, -2.6) * sc, 0.025, true)
 	dock.rotation.y = 0.6
 	add_child(dock)
 
@@ -1154,11 +1321,12 @@ func _update_flutters() -> void:
 
 
 # ================================================================== the World Map (playable book map)
-## Chapter stamps in play order: id, x, z, colour, chapter, page it opens ("" = not drawn yet), title.
+## Chapter stamps in play order: id, x, z, colour, chapter, page it opens, title. A page that isn't built yet
+## (no builder and no res://levels/<page>.json from the level editor) says "still being drawn".
 const STAMPS := [
-	["1", -18.0, 10.5, "ff9ab5", 1, "meadow", "The Meadow"], ["2", -17.0, -1.5, "f5c35b", 2, "", "The Village"],
-	["3", 5.5, 11.5, "7fb5ec", 3, "", "Seaside"], ["4", 5.5, -6.5, "a585e0", 4, "", "Snowy Notebook"],
-	["E", 0.0, -11.5, "26232b", 0, "", "The Eraser's Castle"],
+	["1", -18.0, 10.5, "ff9ab5", 1, "meadow", "The Meadow"], ["2", -17.0, -1.5, "f5c35b", 2, "village", "The Village"],
+	["3", 5.5, 11.5, "7fb5ec", 3, "seaside", "Seaside"], ["4", 5.5, -6.5, "a585e0", 4, "snowy", "Snowy Notebook"],
+	["E", 0.0, -11.5, "26232b", 0, "castle", "The Eraser's Castle"],
 ]
 const CHAPTER_CENTERS := {1: Vector3(-11, 0, 7), 2: Vector3(-11, 0, -6), 3: Vector3(11, 0, 7), 4: Vector3(11, 0, -6)}
 const HOME_STAMP := Vector3(0, 0, 11.0)
@@ -1298,7 +1466,7 @@ func _build_worldmap() -> void:
 		var open := stamp_open(i)
 		var done: bool = s[0] in map_done
 		add_child(colored(_cyl(0.75, 0.85, 0.3, 24), s[3] if open else "d6d1dd", pos + Vector3(0, 0.15, 0), 0.04, 0.15))
-		var total: int = PAGE_STARS.get(s[5], 0)
+		var total: int = page_stars(s[5])
 		var label: String = s[6] if open else "?"
 		if open and total > 0:
 			label += "\n★ %d / %d" % [map_stars.get(s[0], 0), total]
@@ -1308,7 +1476,7 @@ func _build_worldmap() -> void:
 			add_child(st)
 			st.create_tween().set_loops().tween_property(st, "rotation:y", TAU, 2.5).as_relative()
 		if open:
-			var page: String = s[5]
+			var page: String = s[5] if page_exists(s[5]) else ""
 			zones.append({"id": "stamp", "stamp": s[0], "level": page, "pos": pos, "radius": 1.0,
 				"prompt": "E  Enter %s" % s[6]})
 		if prev != Vector3.INF and open:  # the path to this stamp is drawn once it opens
@@ -1671,7 +1839,7 @@ func _process(delta: float) -> void:
 		var hop := absf(sin(time * 3.0 + f.home.x))
 		f.node.position.y = f.home.y + hop * 0.06
 		f.node.scale = Vector3(1.0 + 0.04 * (1.0 - hop), 1.0 - 0.04 * (1.0 - hop), 1.0 + 0.04 * (1.0 - hop))
-		f.mark.visible = not bloom_shown(f.star)
+		f.mark.visible = f.star != "" and not bloom_shown(f.star)
 		f.mark.position.y = f.home.y + 1.9 + absf(sin(time * 4.0)) * 0.15
 	for c in clouds:
 		c.position.x += delta * 0.25

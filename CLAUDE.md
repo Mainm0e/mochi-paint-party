@@ -16,6 +16,8 @@ are for general feel only; never copy their models, textures, characters or leve
 | `blender/mochi/` | Output of `make_mochi.py` (renders, `mochi.blend`, `mochi.glb`, `layers/`) |
 | `tools/make_audio.py` | Synthesizes all music + SFX WAVs (numpy) into `godot/assets/audio/` |
 | `docs/game_design.md` | Game design doc |
+| `editor/` | **Level editor** web app (grid map maker). `node editor/serve.mjs` -> http://localhost:5175; saves `godot/levels/<name>.json`, Play launches Godot |
+| `godot/levels/` | Pages made in the level editor (`sample.json`; `village`/`seaside`/`snowy`/`castle` open their World Map stamps) |
 | `creator/`, `game/` | Older three.js web prototypes (Mochi Maker, web "Doodle Mochi", the old title). Not the main game. |
 | `blender/make_teen_base.py`, `blender/teen/`, `blender/archive/` | Earlier chibi-human experiments, abandoned for the mochi. Keep, don't extend. |
 
@@ -28,6 +30,8 @@ G="/c/Users/mainm/Godot/Godot_v4.7.2-stable_win64_console.exe"
 "$G" --headless --path godot --quit-after 120          # quick script/parse check (look for SCRIPT ERROR)
 "$G" --path godot --resolution 1280x720 -- --autotest=<abs dir>   # scripted playthrough + screenshots, prints AUTOTEST lines
 "$G" --path godot --resolution 1600x900 -- --worldmap=<abs dir>   # world map concept renders (docs/world_concept/)
+"$G" --path godot -- --level=<name> [--overview] [--shot=<abs png>]   # straight into a page; --shot saves a picture and quits
+node editor/serve.mjs                                              # level editor (GODOT env var overrides the exe path)
 
 # Blender 5.2 asset builds
 B="/c/Program Files/Blender Foundation/Blender 5.2/blender.exe"
@@ -57,6 +61,11 @@ The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sket
   `main.gd` sets `world.map_done` / `map_stars` / `map_at` / `map_new` before loading it; a stamp opens when the one before is
   at 5 Bloom Stars, a chapter region (`_chapter_of`) paints once it reaches that. The mochi is `size` 1.7 there
   (scales body, speed, hop) and the camera/fog pull back. Save keeps `map_at` (last stamp used).
+- Editor pages (`_build_json`): `heights` grid (row-major, -1 = hole, step 0.5 m, `cell` m wide; merged into
+  rectangles) + `objects` ({type, x, z, rot, props}); types match the editor `CATALOG` (spawn, checkpoint, star
+  with `reveal` none/drops/smudgies, drop, sticker, power, smudgie, friend, tree, bush, rock, flowers, mushrooms,
+  pond, bouncy, house, fence, sign, platform). Adding a type = add it to `CATALOG` (+ 2D icon, 3D preview) and a
+  `match` arm in `_build_json`. `page_exists` / `page_stars` / `page_title` work for both kinds of page.
 - `mochi.gd`: `CharacterBody3D`; visual squash/stretch on child `bob`; powers (`puffy` glide, `stone` stomp),
   stamina (shown on the face + thought clouds, **no bars**), eating faces (gape/munch), emotes via glTF
   bone-scale animations, shadow raycast.
@@ -70,6 +79,8 @@ The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sket
 - GDScript can't infer types from untyped Dictionary/Array values: write `var x: int = ...` (parse errors otherwise).
 - Physics bodies must not be non-uniformly scaled: give boxes their real size.
 - Blender keeps un-keyed bones from the previous action; Godot code calls `skeleton.reset_bone_poses()` before emotes.
+- Editor levels are read with `FileAccess` from `res://levels/`: when exporting a build, add `levels/*.json` to the
+  export preset's non-resource include filter or the pages won't ship.
 
 ## Status (2026-11-01)
 
