@@ -11,6 +11,7 @@ const SAVE_PATH := "user://mochi_sketchbook.json"
 const CROPS := {"eyes": Rect2i(272, 527, 480, 240), "mouths": Rect2i(432, 721, 160, 80),
 	"cheeks": Rect2i(200, 570, 624, 312), "marks": Rect2i(112, 440, 800, 400)}
 const FALL_Y := -6.0            # below this the mochi is redrawn at the last checkpoint
+const MUSIC := {"village": "music_village_square", "seaside": "music_seaside_breeze"}  # pages with their own theme
 const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6", "sketch": "ffe07a"}
 
 enum Mode { MENU, CREATE, PLAY, PAUSED }
@@ -199,7 +200,9 @@ func _build_scene() -> void:
 	add_child(mochi)
 	mochi.shadow = world.blob_shadow(0.95)
 	mochi.add_child(mochi.shadow)
-	mochi.stepped.connect(func(): audio.play("hop", -10.0 if mochi.exhausted else -8.0, 0.08, 0.85 if mochi.exhausted else 1.0))
+	mochi.stepped.connect(func():
+		audio.play("hop", -10.0 if mochi.exhausted else -8.0, 0.08, 0.85 if mochi.exhausted else 1.0)
+		audio.play("step_" + world.surface_at(mochi.global_position), -6.0, 0.12))  # grass, cobbles, wood, sand...
 	mochi.jumped.connect(func(): audio.play("jump", -3.0, 0.06, 0.8 if mochi.power == "stone" else 1.0))
 	mochi.landed.connect(func(): audio.play("land", -4.0, 0.06, 0.7 if mochi.power == "stone" else 1.0))
 	mochi.squished.connect(func(): audio.play("squish", -1.0))
@@ -292,6 +295,7 @@ func enter_level(name: String) -> void:
 	mochi.size = 1.7 if on_map else 1.0
 	mochi.scale = Vector3.ONE * mochi.size
 	cam_dist = 10.0 if on_map else 4.2
+	audio.play_music(MUSIC.get(name, "music_paper_stroll"))
 	var open_page := not name in ["home", "worldmap"]  # pages are big and open: see further across them
 	environment.fog_depth_begin = 40.0 if on_map else (28.0 if open_page else 16.0)
 	environment.fog_depth_end = 90.0 if on_map else (70.0 if open_page else 38.0)
@@ -1176,7 +1180,7 @@ func _sketch() -> void:
 	_sketch_cd = time + 0.45
 	world.sketch_bridge(mochi.global_position, mochi.forward())
 	mochi.poke()  # a little squish as it draws
-	audio.play("click", -2.0, 0.08, 0.8)
+	audio.play("scribble", -3.0, 0.08)
 	if not _told.has("sketch"):
 		_told["sketch"] = true
 		think("A bridge! It'll rub itself out soon, so hurry across.", 3.0)

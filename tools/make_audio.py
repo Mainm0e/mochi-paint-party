@@ -234,5 +234,143 @@ def music():
     save("music_paper_stroll", out[:n], 0.7, fade=False)
 
 
+
+
+# ================================================================== surfaces, powers and chapter music
+def pluck(freq, dur, bright=0.6, decay=0.35):
+    """A soft plucked string (ukulele / harp-ish): harmonics that fade faster the higher they are."""
+    t = t_(dur)
+    x = sum((bright ** (k - 1)) / k * np.sin(2 * np.pi * freq * k * t) * np.exp(-t * (1 / decay) * (1 + 0.7 * (k - 1)))
+            for k in range(1, 7))
+    return x * np.clip(t / 0.002, 0, 1)
+
+
+def reed(freq, dur, vib=5.2):
+    """A little accordion reed: two slightly detuned buzzy voices with a gentle bellows tremolo."""
+    t = t_(dur)
+    x = np.zeros_like(t)
+    for det in (-0.0018, 0.0018):
+        ph = 2 * np.pi * freq * (1 + det) * t + 0.004 * np.sin(2 * np.pi * vib * t)
+        x += sum(np.sin(k * ph) / k ** 1.2 for k in range(1, 7))
+    x *= 0.8 + 0.2 * np.sin(2 * np.pi * vib * t)
+    return x * np.clip(t / 0.03, 0, 1) * np.clip((dur - t) / 0.06, 0, 1)
+
+
+def chapter_sfx():
+    # footsteps per surface, played softly under the 'boing' hop
+    n = int(0.12 * SR)
+    swish = lowpass(rng.standard_normal(n), 3200) - lowpass(rng.standard_normal(n), 700)
+    save("step_grass", swish * env(n, 0.012, 0.035), 0.35)
+    n = int(0.08 * SR)
+    tap = lowpass(rng.standard_normal(n), 6000) * env(n, 0.0005, 0.006) + 0.4 * np.sin(2 * np.pi * 900 * t_(0.08)) * env(n, 0.0005, 0.008)
+    save("step_stone", tap, 0.4)
+    n = int(0.14 * SR)
+    knock = np.sin(2 * np.pi * 210 * t_(0.14)) * env(n, 0.001, 0.035) + 0.6 * np.sin(2 * np.pi * 330 * t_(0.14)) * env(n, 0.001, 0.02)
+    save("step_wood", knock + 0.15 * lowpass(rng.standard_normal(n), 1500) * env(n, 0.0005, 0.01), 0.45)
+    n = int(0.16 * SR)
+    save("step_sand", lowpass(rng.standard_normal(n), 2400) * env(n, 0.02, 0.05), 0.3)
+    n = int(0.2 * SR)
+    drip = sum(np.sin(glide(f, f * 1.6, n, 0.4)) * env(n, 0.001, 0.03) for f in (600, 900))
+    save("step_water", drip * 0.5 + lowpass(rng.standard_normal(n), 3000) * env(n, 0.005, 0.05), 0.35)
+    # a splash for falling in the sea
+    n = int(0.8 * SR)
+    sp = lowpass(rng.standard_normal(n), 2500) * env(n, 0.005, 0.22)
+    sp += 0.4 * np.sin(glide(500, 140, n, 0.4)) * env(n, 0.002, 0.1)
+    save("splash", sp, 0.6)
+    # a bubble pop (Bubble Mochi bounces, bubble rides)
+    n = int(0.16 * SR)
+    pop = np.sin(glide(380, 1300, n, 0.5)) * env(n, 0.002, 0.04)
+    save("bubble", pop, 0.5)
+    # pencil scribble for Sketch Mochi's bridges
+    n = int(0.42 * SR)
+    t = t_(0.42)
+    scr = lowpass(rng.standard_normal(n), 5000) * (0.5 + 0.5 * np.abs(np.sin(2 * np.pi * 14 * t)))
+    save("scribble", scr * np.clip(t / 0.02, 0, 1) * np.clip((0.42 - t) / 0.08, 0, 1), 0.4)
+    # tide bell: a low, warm 'dong' when the sea turns
+    save("tide", mix((bell(note_hz(55), 2.6, 0.25, 1.2), 0, 1.0), (bell(note_hz(62), 2.2, 0.2, 1.0), 0.04, 0.5)), 0.6)
+
+
+def loop_track(name, bars, beats_per_bar, bpm, draw):
+    """Render `draw(put, beat)` into a seamless loop of `bars` bars."""
+    beat = 60 / bpm
+    n = int(bars * beats_per_bar * beat * SR)
+    tail = int(3.0 * SR)
+    out = np.zeros(n + tail)
+
+    def put(sig, start_s, gain):
+        i = int(start_s * SR)
+        out[i:i + len(sig)] += sig[:max(0, len(out) - i)] * gain
+
+    draw(put, beat)
+    out[:tail] += out[n:n + tail]
+    save(name, out[:n], 0.7, fade=False)
+
+
+def music_village():
+    """'Village Square': a cosy waltz (3/4) in F, a little accordion over plucked bass and chimes."""
+    chords = [[41, 57, 60, 65], [46, 58, 62, 65], [48, 55, 60, 64], [41, 57, 60, 65],
+              [38, 57, 62, 65], [46, 58, 62, 65], [43, 55, 58, 62], [48, 55, 60, 64]] * 2
+
+    def draw(put, beat):
+        for b, ch in enumerate(chords):
+            start = b * 3 * beat
+            put(pluck(note_hz(ch[0]), 1.4, 0.4, 0.5), start, 0.42)                    # oom
+            for k in (1, 2):                                                             # pah pah
+                for m in ch[1:]:
+                    put(pluck(note_hz(m), 0.5, 0.5, 0.18), start + k * beat, 0.07)
+        melody = [  # (midi, beats)
+            (72, 1), (77, 1), (79, 1), (81, 2), (79, 1), (77, 1), (76, 1), (77, 1), (79, 3),
+            (74, 1), (77, 1), (81, 1), (82, 2), (81, 1), (79, 1), (77, 1), (76, 1), (77, 3),
+            (81, 1), (79, 1), (77, 1), (74, 2), (77, 1), (79, 2), (76, 1), (72, 3),
+            (74, 1), (76, 1), (77, 1), (79, 1), (77, 1), (76, 1), (77, 3), (None, 3),
+        ]
+        t = 0.0
+        for m, d in melody:
+            if m is not None:
+                put(reed(note_hz(m), d * beat * 0.95), t * beat, 0.06)
+            t += d
+        for b in range(len(chords)):  # a soft bell on each bar's first beat, every other bar
+            if b % 2 == 0:
+                put(bell(note_hz(chords[b][3] + 12), 1.0, 0.25, 0.4), b * 3 * beat, 0.05)
+
+    loop_track("music_village_square", len(chords), 3, 116, draw)
+
+
+def music_seaside():
+    """'Seaside Breeze': laid-back plucked ukulele in G with a slow wave swell and shell clicks."""
+    chords = [[43, 59, 62, 67], [40, 59, 64, 67], [36, 60, 64, 67], [38, 57, 62, 66]] * 2
+
+    def draw(put, beat):
+        pattern = [0, 0.75, 1.5, 2, 2.75, 3.5]  # an easy strum rhythm, in beats
+        for b, ch in enumerate(chords):
+            start = b * 4 * beat
+            put(pluck(note_hz(ch[0]), 2.0, 0.3, 0.7), start, 0.35)
+            put(pluck(note_hz(ch[0]), 1.2, 0.3, 0.5), start + 2 * beat, 0.25)
+            for k, p in enumerate(pattern):
+                for j, m in enumerate(ch[1:]):
+                    put(pluck(note_hz(m), 0.7, 0.55, 0.22), start + p * beat + j * 0.012, 0.06 if k % 2 == 0 else 0.04)
+        melody = [(79, 1.5), (78, 0.5), (76, 1), (74, 1), (76, 3), (None, 1),
+                  (74, 1), (76, 1), (79, 1), (81, 1), (79, 4),
+                  (79, 1.5), (81, 0.5), (83, 1), (81, 1), (79, 2), (76, 2),
+                  (74, 1), (72, 1), (74, 1), (78, 1), (79, 4)]
+        t = 0.0
+        for m, d in melody:
+            if m is not None:
+                put(bell(note_hz(m), d * beat + 0.6, 0.3, 0.5), t * beat, 0.16)
+            t += d
+        total = len(chords) * 4 * beat
+        for w in range(int(total / (4 * beat))):  # a wave swell every two bars
+            dur = 7.0
+            wn = int(dur * SR)
+            tt = t_(dur)
+            swell = lowpass(rng.standard_normal(wn), 900) * np.sin(np.pi * tt / dur) ** 2
+            put(swell, w * 8 * beat, 0.05)
+
+    loop_track("music_seaside_breeze", len(chords), 4, 92, draw)
+
+
 sfx()
 music()
+chapter_sfx()
+music_village()
+music_seaside()

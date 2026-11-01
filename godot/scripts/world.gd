@@ -21,6 +21,8 @@ const ISLAND_DEPTH := 0.9
 const PAGES := {"meadow": "The Meadow", "village": "The Village"}
 const PAGE_STARS := {"meadow": 12, "village": 12}   # Bloom Stars hidden on each page
 const STARS_TO_OPEN := 5        # Bloom Stars from a chapter that open the path to the next one
+const SURFACES := {"d9b38c": "wood", "e6c79c": "wood", "c99a6a": "wood", "f6e3b4": "sand"}  # by paper colour
+const PAGE_SURFACE := {"village": "stone", "seaside": "sand"}  # what the ground is, page by page
 const RACE_TIME := 30.0
 const SKETCH_LENGTH := 5.0      # a Sketch Mochi bridge (metres)
 const SKETCH_LIFE := 6.0        # seconds before it is rubbed out
@@ -318,6 +320,8 @@ func _build_void() -> void:
 func island(x: float, z: float, sx: float, sz: float, top: float, paint := "e3f1d4", depth := ISLAND_DEPTH) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.position = Vector3(x, top - depth / 2.0, z)
+	if SURFACES.has(paint):  # planks sound like wood, sand like sand (see surface_at)
+		body.set_meta("surface", SURFACES[paint])
 	var cs := CollisionShape3D.new()
 	cs.shape = _box_shape(Vector3(sx, depth, sz))
 	body.add_child(cs)
@@ -1027,6 +1031,7 @@ func sketch_bridge(feet: Vector3, dir: Vector3) -> void:
 	add_child(body)
 	plank.scale = Vector3(1.0, 1.0, 0.05)  # only the picture draws in; the collider is whole from the start
 	create_tween().tween_property(plank, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_SINE)
+	body.set_meta("surface", "wood")
 	sketches.append(body)
 	if sketches.size() > 2:
 		_rub_out(sketches.pop_front(), 0.0)
@@ -1043,6 +1048,15 @@ func _rub_out(body: Node3D, after: float) -> void:
 	tw.tween_callback(func():
 		sketches.erase(body)
 		body.queue_free())
+
+
+## What the mochi is standing on, for its footstep sound: grass, stone, wood, sand or water.
+func surface_at(pos: Vector3) -> String:
+	var hit := get_world_3d().direct_space_state.intersect_ray(
+		PhysicsRayQueryParameters3D.create(pos + Vector3(0, 0.3, 0), pos - Vector3(0, 0.6, 0), 1))
+	if not hit.is_empty() and hit.collider.has_meta("surface"):
+		return hit.collider.get_meta("surface")
+	return PAGE_SURFACE.get(level, "grass")
 
 
 ## Standing on a bouncy mushroom cap?
@@ -1294,6 +1308,7 @@ func _laundry(a: Vector3, b: Vector3) -> void:
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	cs.shape = _box_shape(Vector3(0.5, 0.1, length))
+	body.set_meta("surface", "wood")
 	body.add_child(cs)
 	body.add_child(colored(_box(0.12, 0.06, length), "fffaf0", Vector3(0, 0.0, 0), 0.015, 0.1))
 	body.position = mid - Vector3(0, 0.05, 0)

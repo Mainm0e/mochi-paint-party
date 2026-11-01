@@ -5,12 +5,15 @@ extends Node
 ## The sounds are synthesized by tools/make_audio.py.
 
 const DIR := "res://assets/audio/"
-const SOUNDS := ["step", "hop", "jump", "land", "squish", "collect", "win", "click",
+const SOUNDS := ["step", "hop", "jump", "land", "squish", "collect", "win", "click", "slurp", "gulp", "munch",
+	"step_grass", "step_stone", "step_wood", "step_sand", "step_water", "splash", "bubble", "scribble", "tide",
 	"emote_happy", "emote_love", "emote_angry", "emote_sad", "emote_surprised", "emote_sleepy"]
 const MUSIC_DB := -9.0    # music sits under the effects
+const TRACKS := ["music_paper_stroll", "music_village_square", "music_seaside_breeze"]
 const VOICES := 10
 
 var streams := {}
+var tracks := {}                 # music loops by name
 var music: AudioStreamPlayer
 var _pool: Array[AudioStreamPlayer] = []
 var _next := 0
@@ -27,12 +30,14 @@ func _ready() -> void:
 	AudioServer.set_bus_effect_enabled(_music_bus, 0, false)
 	for s in SOUNDS:
 		streams[s] = load(DIR + s + ".wav")
-	var track: AudioStreamWAV = load(DIR + "music_paper_stroll.wav")
-	track.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	track.loop_begin = 0
-	track.loop_end = int(track.get_length() * track.mix_rate)
+	for name in TRACKS:
+		var track: AudioStreamWAV = load(DIR + name + ".wav")
+		track.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		track.loop_begin = 0
+		track.loop_end = int(track.get_length() * track.mix_rate)
+		tracks[name] = track
 	music = AudioStreamPlayer.new()
-	music.stream = track
+	music.stream = tracks[TRACKS[0]]
 	music.bus = "Music"
 	music.volume_db = MUSIC_DB
 	add_child(music)
@@ -68,6 +73,18 @@ func play(sound: String, volume_db := 0.0, jitter := 0.06, pitch := 1.0) -> void
 func start_music() -> void:
 	if not music.playing:
 		music.play()
+
+
+## Switch to another page's theme: the old one fades out, the new one fades in from its start.
+func play_music(track_name: String) -> void:
+	if not tracks.has(track_name) or (music.stream == tracks[track_name] and music.playing):
+		return
+	var tw := create_tween()
+	tw.tween_property(music, "volume_db", -40.0, 0.6)
+	tw.tween_callback(func():
+		music.stream = tracks[track_name]
+		music.play())
+	tw.tween_property(music, "volume_db", MUSIC_DB, 0.8)
 
 
 ## Muffle the music (pause menu) or bring it back.
