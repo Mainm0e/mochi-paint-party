@@ -61,11 +61,35 @@ Start with **Puffy** and **Stone** in the first chapter; add one or two per chap
 
 ## Structure and progression
 
-- **The Book:** chapters of 3 pages plus an Eraser page. First four chapters: Meadow (grass, flowers), Village (rooftops, chimneys), Seaside (water, bubbles), Snowy Notebook (ice, toasty puzzles).
-- **Paint Seal:** each page ends in a big ink-locked seal; eating it colors the page and unlocks the next one.
+- **The Book: open pages.** Each chapter is **one big open page** to roam freely, explored in any order (decided
+  2026-11-01, replacing "3 linear pages per chapter"). First four: Meadow (grass, flowers), Village (rooftops,
+  chimneys), Seaside (water, bubbles), Snowy Notebook (ice, toasty puzzles), then the Eraser's castle.
+- **Bloom Stars** are the goal of a page: about 12 hidden on each, earned in many different ways (a mix of
+  free-roam finds and doodle-friend quests): climbs, glides, power puzzles, secret nooks, races, cleaning a
+  Smudgie nest, eating every paint drop, linear "trails" (the old Meadow 1 run), and friends' requests.
+  **5 stars** open the path to the next chapter; all of them paint the whole page.
+- **Paint drops** still color the page around them; every Bloom Star paints a wider patch.
 - **Stickers:** 5 hidden per page. They unlock new creator items (toppings, eyes, mouths) and home decorations.
-- **Doodle friends:** each chapter frees a doodle NPC who moves to the Home Page, chats, gives hints and reacts to your emotes.
-- **Home Page:** your hub page. Decorate with earned stickers, re-dress your mochi in the creator, see friends, pick a page from the book.
+- **Doodle friends** live on each page (a "!" over them while they need help). Talk with E: they ask for lost
+  things (eat them to carry them back) or set challenges. Later they can move to the Home Page.
+- **Home Page:** your hub page. Decorate with earned stickers, re-dress your mochi in the creator, see friends, open the book.
+
+**The Meadow (built):** a 64 x 60 open page ([overview](world_concept/meadow_open.png)). Its 12 Bloom Stars:
+
+| Star | How |
+|---|---|
+| Giant tree | climb the branch platforms to the crown |
+| Peek | the hollow behind the giant tree |
+| Hill glide | climb the terraces, eat the cloud, glide to the islet (or a tricky sprint + double jump) |
+| Nest | clean every Smudgie in the ink puddle |
+| Cage | eat the pebble, stomp the switch, the cage sinks |
+| Sky | bounce on the big mushroom + double jump onto the cloud |
+| Rooftop | climb the crates by the village houses |
+| Pip | find Pip's pink bow in the far corner |
+| Tufts | find three fluff-puffs (high up, in flowers, by the trail) |
+| Race | Scribble's six-hoop race, 30 s |
+| Drops | eat all 14 paint drops |
+| Ink Trail | the end of the old Meadow 1 run off the north edge |
 
 ## World design
 
@@ -84,11 +108,11 @@ mochi around the map freely (not only node to node), and **level stamps** are jo
 - **The Eraser's castle** stands beyond the top edge of the book: a big pink eraser with pencil towers. It opens
   once enough Bloom Stars are collected.
 
-**Built:** the Home Page book opens the map. The mochi walks it at a bigger size. Stand on a stamp and press E to
-enter its page; the next stamp opens when the one before it is painted, and locked ones show "?". The book starts
-as plain ink. Finishing a page paints its chapter region from that stamp, puts a gold star on the stamp and draws
+**Built:** the Home Page book opens the map. The mochi walks it at a bigger size. Each chapter has one stamp; press E on it to
+enter its open page. The next stamp opens once the chapter before has 5 Bloom Stars; locked ones show "?". The book starts
+as plain ink. Opening the next chapter paints the region from that stamp, puts a gold star on the stamp and draws
 the dotted path to the next one. A Home stamp walks you back, and the pause menu and "Page painted!" card offer
-"Back to the map". Only 1-1 (Meadow 1) has a page yet; the others say "This page is still being drawn!".
+"Back to the map". Each stamp shows its star count. Only the Meadow is built; the others say "This page is still being drawn!".
 
 ### Wonder moments: Ink Blooms
 

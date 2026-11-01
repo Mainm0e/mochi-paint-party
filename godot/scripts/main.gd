@@ -26,7 +26,7 @@ var cam_dist := 4.2
 var follow := Vector3.ZERO      # smoothed point the play camera orbits
 var shake := 0.0
 var time := 0.0
-var save := {"look": null, "pages": {}, "stickers": [], "music": 0.8, "sfx": 1.0, "look_speed": 0.5, "map_at": "1-1"}
+var save := {"look": null, "pages": {}, "stickers": [], "music": 0.8, "sfx": 1.0, "look_speed": 0.5, "map_at": "1"}
 var has_mochi := false
 var environment: Environment
 var cinematic := false          # a script is framing the camera (concept renders)
@@ -49,6 +49,9 @@ var drops_label: Label
 var drop_dots: HBoxContainer
 var sticker_label: Label
 var power_tag: PanelContainer
+var speech: PanelContainer
+var speech_label: Label
+var _speech_until := 0.0
 var power_label: Label
 var prompt: PanelContainer
 var prompt_label: Label
@@ -82,9 +85,22 @@ func _ready() -> void:
 		_toast("Checkpoint!"))
 	world.switch_pressed.connect(func():
 		audio.play("win", -8.0, 0.0, 1.5)
-		think("Ooh, a bridge came up!", 2.0))
+		think("Ooh, something moved!", 2.0))
 	world.smudgie_cleaned.connect(func(): audio.play("squish", -2.0, 0.1, 1.4))
 	world.star_poofed.connect(func(): audio.play("click", -6.0, 0.1, 0.7))
+	world.bloom_revealed.connect(func(id: String):  # remembered, so a revealed star waits there next visit
+		var ps := _page_save(world.level)
+		if not ("reveal:" + id) in ps.eaten:
+			ps.eaten.append("reveal:" + id)
+			_store()
+		audio.play("win", -6.0, 0.0, 1.3)
+		think("A Bloom Star appeared!", 2.2))
+	world.friend_said.connect(func(title: String, text: String, seconds: float):
+		speech_label.text = "%s:  %s" % [title, text]
+		_speech_until = time + seconds)
+	world.race_update.connect(func(text: String):
+		audio.play("collect", -6.0, 0.0, 1.4)
+		_toast(text))
 	enter_level("home")
 	set_mode(Mode.MENU)
 	audio.set_volume("Music", save.music)
@@ -205,13 +221,18 @@ func _load_save() -> void:
 	save.music = clampf(float(data.get("music", 0.8)), 0.0, 1.0)
 	save.sfx = clampf(float(data.get("sfx", 1.0)), 0.0, 1.0)
 	save.look_speed = clampf(float(data.get("look_speed", 0.5)), 0.0, 1.0)
-	save.map_at = String(data.get("map_at", "1-1"))
+	save.map_at = String(data.get("map_at", "1"))
 
 
 func _store() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(save))
+
+
+## Bloom Stars eaten on `page` (their ids start with "b_").
+func _stars(page: String) -> int:
+	return _page_save(page).eaten.filter(func(id): return String(id).begins_with("b_")).size()
 
 
 func _page_save(page: String) -> Dictionary:
@@ -226,7 +247,12 @@ func enter_level(name: String) -> void:
 	var on_map := name == "worldmap"
 	var eaten: Array = _page_save(name).eaten if not name in ["home", "worldmap"] else []
 	if on_map:  # the map shows what is painted, where the mochi last was, and what was just finished
-		world.map_done = World.STAMPS.filter(func(s): return s[5] != "" and _page_save(s[5]).done).map(func(s): return s[0])
+		world.map_stars = {}
+		for s in World.STAMPS:
+			if s[5] != "":
+				world.map_stars[s[0]] = _stars(s[5])
+		world.map_done = World.STAMPS.filter(func(s): return world.map_stars.get(s[0], 0) >= World.STARS_TO_OPEN) \
+			.map(func(s): return s[0])
 		world.map_at = save.map_at
 		world.map_new = world.stamp_for_level(_just_done)
 		_just_done = ""
@@ -235,8 +261,9 @@ func enter_level(name: String) -> void:
 	mochi.size = 1.7 if on_map else 1.0
 	mochi.scale = Vector3.ONE * mochi.size
 	cam_dist = 10.0 if on_map else 4.2
-	environment.fog_depth_begin = 40.0 if on_map else 16.0
-	environment.fog_depth_end = 90.0 if on_map else 38.0
+	var open_page := name in World.PAGE_STARS  # open pages are big: see further across them
+	environment.fog_depth_begin = 40.0 if on_map else (28.0 if open_page else 16.0)
+	environment.fog_depth_end = 90.0 if on_map else (70.0 if open_page else 38.0)
 	mochi.redraw_at(world.spawn_point())
 	mochi.rotation.y = PI  # face into the page (away from the camera)
 	yaw = 0.0
@@ -271,6 +298,8 @@ func _refresh_hud() -> void:
 	var got: int = save.stickers.filter(func(s): return String(s).begins_with(world.level + ":")).size() if page \
 		else save.stickers.size()
 	sticker_label.text = "Stickers  %d / %d" % [got, 5 if page else world.PAGES.size() * 5]
+	if world.level in World.PAGE_STARS:
+		sticker_label.text = "Bloom Stars  %d / %d\n%s" % [_stars(world.level), World.PAGE_STARS[world.level], sticker_label.text]
 	home_btn.visible = page
 	_on_power_changed(mochi.power, false)
 
@@ -510,12 +539,12 @@ func _build_ui() -> void:
 	tag.add_child(tv)
 	hud.add_child(tag)
 	power_tag = PanelContainer.new()
-	power_tag.position = Vector2(16, 132)
+	power_tag.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	power_tag.add_theme_stylebox_override("panel", _box(Color("fff7e0"), 3, 3, 14))
 	power_label = _label("", 17)
 	power_tag.add_child(power_label)
 	power_tag.visible = false
-	hud.add_child(power_tag)
+	tv.add_child(power_tag)  # stacks under the card's lines, however many there are
 	var menu_btn := _button("Menu", false, 17)
 	menu_btn.anchor_left = 1.0
 	menu_btn.anchor_right = 1.0
@@ -539,6 +568,14 @@ func _build_ui() -> void:
 	prompt_label = _label("", 20)
 	prompt.add_child(prompt_label)
 	prompt.visible = false
+	speech = PanelContainer.new()  # what a doodle friend is saying
+	speech.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	speech_label = _label("", 19)
+	speech_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	speech_label.custom_minimum_size = Vector2(560, 0)
+	speech.add_child(speech_label)
+	speech.visible = false
+	bottom.add_child(speech)
 	bottom.add_child(prompt)
 	var emote_card := PanelContainer.new()
 	emote_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -726,7 +763,7 @@ func _on_power_changed(p: String, announce := true) -> void:
 ## Something was swallowed: count it, save it and react.
 func _on_ate(kind: String, e: Dictionary) -> void:
 	var ps := _page_save(world.level)
-	if kind in ["drop", "sticker"] and not e.id in ps.eaten:
+	if kind in ["drop", "sticker", "bloom", "item"] and not e.id in ps.eaten:
 		ps.eaten.append(e.id)
 	match kind:
 		"drop":
@@ -746,22 +783,34 @@ func _on_ate(kind: String, e: Dictionary) -> void:
 		"smudgie":
 			audio.play("squish", -2.0, 0.1, 1.4)
 			think(["Bleh, inky!", "Smudge cleaned up!", "Tastes like a pen..."].pick_random(), 1.6)
-		"seal":
-			ps.done = true
-			_just_done = world.level
+		"item":
+			audio.play("collect", -2.0, 0.0, 1.1)
+			think("I'll keep this safe in my cheeks. Someone must be missing it!", 2.6)
+		"bloom":
 			audio.play("win", 0.0, 0.0)
+			_refresh_hud()
+			var n := _stars(world.level)
+			_toast("Bloom Star!  %d / %d" % [n, World.PAGE_STARS.get(world.level, n)])
+			if n == World.STARS_TO_OPEN:
+				ps.done = true
+				_just_done = world.level  # the map celebrates the newly opened path
 	_store()
 	await get_tree().create_timer(Mochi.MUNCH_TIME).timeout  # let it finish chewing first
-	if kind == "seal":
+	if kind == "bloom":
 		mochi.emote("Happy")
-		await get_tree().create_timer(1.8).timeout
-		var stickers: int = save.stickers.filter(func(s): return String(s).begins_with(world.level + ":")).size()
-		win_text.text = "%s is full of color again!\nPaint drops %d / %d   ·   Stickers %d / 5" % [
-			world.page_name(), world.drops.size() - world.drops_left(), world.drops.size(), stickers]
-		win_text.visible = true
-		win_panel.visible = true
-		mode = Mode.PAUSED
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		var n := _stars(world.level)
+		var total: int = World.PAGE_STARS.get(world.level, n)
+		await get_tree().create_timer(1.6).timeout
+		if n == World.STARS_TO_OPEN:
+			think("A new path opened on the World Map!", 3.0)
+		if n == total:  # every star found: the whole page is in colour again
+			var stickers: int = save.stickers.filter(func(s): return String(s).begins_with(world.level + ":")).size()
+			win_text.text = "%s is full of color again!\nBloom Stars %d / %d   ·   Stickers %d / 5" % [
+				world.page_name(), n, total, stickers]
+			win_text.visible = true
+			win_panel.visible = true
+			mode = Mode.PAUSED
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif kind == "drop" or kind == "sticker":
 		mochi.emote(["Happy", "Love", "Surprised"].pick_random())
 
@@ -929,6 +978,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _use_zone(z: Dictionary) -> void:
 	match z.id:
+		"friend":
+			audio.play("click", -4.0, 0.1, 1.2)
+			world.talk(z.friend)
 		"book":
 			audio.play("collect", -4.0, 0.0, 0.8)
 			enter_level("worldmap")
@@ -972,6 +1024,11 @@ func _process(delta: float) -> void:
 		world.tick(delta, mochi.global_position)
 		world.update_checkpoints(mochi.global_position)
 		_eat(delta)
+		if mochi.is_on_floor() and mochi.velocity.y <= 0.0 and world.bouncy_at(mochi.global_position):
+			mochi.velocity.y = 9.0  # boing! a mushroom cap flings the mochi high
+			mochi.jumps = 1
+			mochi.squish = 0.0
+			audio.play("jump", 0.0, 0.05, 0.7)
 		var bump := world.bumping(mochi.global_position)
 		if not bump.is_empty():
 			mochi.knock(bump.node.global_position)
@@ -988,6 +1045,7 @@ func _process(delta: float) -> void:
 		prompt.visible = not _zone.is_empty()
 		if prompt.visible:
 			prompt_label.text = _zone.prompt
+	speech.visible = mode == Mode.PLAY and time < _speech_until
 	_update_cloud(delta)
 	_update_camera(delta)
 
@@ -1132,84 +1190,107 @@ func _autotest(dir: String) -> void:
 	await wait.call(2.0)
 	print("AUTOTEST on the map: %s, painted stamps %s, zones %d" % [world.level, world.map_done, world.zones.size()])
 	await shot.call("3_map")
-	# walk to stamp 1-1 and enter Meadow 1
+	# walk to stamp 1 and enter the open Meadow
 	place.call(Vector3(-18, 0.4, 10.6))
 	await wait.call(0.4)
 	print("AUTOTEST stamp zone: '%s'" % _zone.get("prompt", ""))
 	_use_zone(_zone)
 	await wait.call(2.0)
 	await shot.call("3b_meadow_start")
-	# eat the cloud -> Puffy Mochi
-	place.call(Vector3(2.6, 0.1, -18.2), PI)
-	for i in 360:
-		await get_tree().process_frame
-		if mochi.power != "":
-			break
-	await wait.call(0.8)
-	print("AUTOTEST power after eating the cloud: '%s'" % mochi.power)
-	await shot.call("4_puffy")
-	# glide across the big gap from island D to E
-	place.call(Vector3(0, 0.1, -20.8), PI)
-	yaw = PI / 2.0
-	pitch = 0.25
-	Input.action_press("move_forward")
-	yaw = 0.0
-	await wait.call(0.2)
-	Input.action_press("jump")
-	mochi.jump()
-	await wait.call(1.0)
-	await shot.call("5_glide")
-	await wait.call(1.6)
-	Input.action_release("jump")
-	Input.action_release("move_forward")
+	var star_wait := func(before: int):  # stand by a star until it has been gobbled
+		for i in 300:
+			await get_tree().process_frame
+			if _stars(world.level) > before:
+				break
+		await wait.call(0.3)
+	# Pip's quest: hear it, fetch the bow from the far corner, bring it back
+	place.call(Vector3(3.5, 0.1, 19.3))
+	await wait.call(0.4)
+	_use_zone(_zone)
 	await wait.call(0.6)
-	print("AUTOTEST after glide: z %.1f y %.2f on_floor %s" % [mochi.global_position.z, mochi.global_position.y, mochi.is_on_floor()])
-	# eat the pebble -> Stone Mochi, then stomp the switch
-	place.call(Vector3(-2.3, -0.5, -29.6), PI)
-	for i in 160:
+	print("AUTOTEST Pip says: '%s'" % world.friends.pip.said)
+	await shot.call("4_pip")
+	place.call(Vector3(-28.5, 0.1, -26.3))
+	for i in 300:
+		await get_tree().process_frame
+		if world.has_item("bow"):
+			break
+	print("AUTOTEST carrying the bow: %s" % world.has_item("bow"))
+	await wait.call(1.0)
+	place.call(Vector3(3.5, 0.1, 19.3))
+	await wait.call(0.4)
+	_use_zone(_zone)
+	await wait.call(0.8)
+	print("AUTOTEST Pip thanks: '%s', star shown %s" % [world.friends.pip.said, world.bloom_shown("b_pip")])
+	place.call(Vector3(4.8, 0.1, 19.6))
+	await star_wait.call(0)
+	print("AUTOTEST stars after Pip: %d" % _stars(world.level))
+	# Scribble's hoop race
+	place.call(Vector3(9, 0.1, 9.3))
+	await wait.call(0.4)
+	_use_zone(_zone)
+	await wait.call(0.5)
+	await shot.call("5_race")
+	for h in world.race.hoops:
+		place.call(h.global_position - Vector3(0, 0.9, 0))
+		await wait.call(0.25)
+	print("AUTOTEST race star shown: %s" % world.bloom_shown("b_race"))
+	place.call(Vector3(9.0, 0.1, 5.3))
+	await star_wait.call(1)
+	# the bouncy mushroom
+	place.call(Vector3(-4, 1.4, -5))
+	var peak := 0.0
+	for i in 90:
+		await get_tree().process_frame
+		peak = maxf(peak, mochi.global_position.y)
+	print("AUTOTEST mushroom bounce peak y %.1f" % peak)
+	# the cage: eat the pebble, stomp the switch, grab the star
+	place.call(Vector3(8, 0.1, -13.8))
+	for i in 200:
 		await get_tree().process_frame
 		if mochi.power == "stone":
 			break
 	await wait.call(0.6)
-	print("AUTOTEST power after eating the pebble: '%s'" % mochi.power)
-	place.call(Vector3(2.0, -0.5, -34.6), PI)
+	place.call(Vector3(6.8, 0.1, -18))
 	await wait.call(0.3)
 	mochi.jump()
 	await wait.call(0.25)
 	mochi.jump()
 	await wait.call(1.8)
-	print("AUTOTEST switch pressed: %s, bridge y %.2f" % [world.switches[0].on, world.switches[0].bridge.position.y])
-	yaw = 0.6
-	await shot.call("6_bridge")
-	# spit the stone out as a star
-	print("AUTOTEST spit: %s, stars in flight %d" % [mochi.spit(), world.stars.size()])
-	await wait.call(0.1)
-	await shot.call("7_spit")
-	# fall off the page and get redrawn
-	place.call(Vector3(9, -3, -38), PI)
-	await wait.call(1.2)
-	print("AUTOTEST redrawn at checkpoint: %s (y %.2f)" % [mochi.global_position.distance_to(world.spawn_point()) < 1.5, mochi.global_position.y])
-	# eat the Paint Seal
-	yaw = 0.0
-	place.call(Vector3(0, 0.4, -49.6), PI)
-	for i in 600:
-		await get_tree().process_frame
-		if win_panel.visible:
-			break
-	await wait.call(0.5)
-	print("AUTOTEST page complete panel: %s / text: %s" % [win_panel.visible, win_text.text.replace("\n", " | ")])
-	await shot.call("8_painted")
-	# back to the map: Meadow paints in and the path to 1-2 draws itself
-	win_panel.visible = false
+	print("AUTOTEST cage switch: %s, cage y %.2f" % [world.switches[0].on, world.switches[0].bridge.position.y])
+	await shot.call("6_cage")
+	place.call(Vector3(4, 0.1, -18.6))
+	await star_wait.call(2)
+	# the hidden nook behind the giant tree
+	place.call(Vector3(-17.2, 0.1, 5.9))
+	await star_wait.call(3)
+	await shot.call("7_tree")
+	# the end of the Ink Trail
+	place.call(Vector3(0, 0.4, -84.0))
+	await star_wait.call(4)
+	print("AUTOTEST stars: %d / %d, page done %s" % [_stars(world.level), World.PAGE_STARS.meadow, _page_save("meadow").done])
+	await wait.call(2.0)
+	await shot.call("8_trail")
+	cinematic = true  # a bird's-eye view of the whole open Meadow
+	ui.visible = false
+	environment.fog_depth_begin = 80.0
+	environment.fog_depth_end = 160.0
+	camera.position = Vector3(0, 42, 48)
+	camera.look_at(Vector3(0, 0, -12))
+	await wait.call(0.3)
+	await shot.call("8b_meadow_overview")
+	cinematic = false
+	ui.visible = true
+	# back to the map: the Meadow paints in and the path to the Village draws itself
 	enter_level("worldmap")
 	set_mode(Mode.PLAY)
 	await wait.call(1.0)
-	print("AUTOTEST map after page: painted %s, new %s, at %s" % [world.map_done, world.map_new, mochi.global_position])
+	print("AUTOTEST map after 5 stars: opened %s, stars %s, new %s" % [world.map_done, world.map_stars, world.map_new])
 	await wait.call(2.5)
 	await shot.call("9_map_painted")
-	place.call(Vector3(-12.5, 0.4, 12.1))
+	place.call(Vector3(-17, 0.4, -1.4))
 	await wait.call(0.4)
-	print("AUTOTEST stamp 1-2 zone: '%s'" % _zone.get("prompt", ""))
+	print("AUTOTEST stamp 2 zone: '%s'" % _zone.get("prompt", ""))
 	_use_zone(_zone)
 	await wait.call(0.6)
 	print("AUTOTEST still being drawn thought: '%s' (still on %s)" % [cloud_label.text, world.level])

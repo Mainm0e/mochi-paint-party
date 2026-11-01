@@ -46,12 +46,16 @@ The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sket
 - `main.gd`: flow (menu -> creator -> Home Page -> World Map -> pages), input map (registered in code), third-person camera
   (captured mouse, yaw/pitch), HUD/menus (paper cards, ink borders, `Segoe Print` font), thought clouds
   (`think()`), eating loop (`_eat`), save (`user://mochi_sketchbook.json`), the `_autotest` tour.
-- `world.gd`: `load_level("home" | "worldmap" | "meadow1")` builds paper islands (StaticBody3D), doodle props (white +
+- `world.gd`: `load_level("home" | "worldmap" | "meadow")` builds paper islands (StaticBody3D), doodle props (white +
   ink outline, painted later via instance uniform `albedo`), edibles (drop / power / sticker / smudgie / seal),
   checkpoints, switches + bridges, Smudgie AI, spat stars, painting ripples.
-- World Map (`_build_worldmap`): `STAMPS` lists every level stamp (id, pos, colour, chapter, page; "" = not built).
-  `main.gd` sets `world.map_done` / `map_at` / `map_new` before loading it; a stamp opens when the one before is
-  painted, a chapter region (`_chapter_of`) paints once any of its pages is. The mochi is `size` 1.7 there
+- Open pages (`_build_meadow`): big ground island + landmarks. Bloom Stars (`bloom()`, ids `b_*`, hidden ones
+  shown by `reveal_bloom`), doodle friends (`friend()`: zone + `talk()`, quests for `item()`s, `friend_said` ->
+  2D speech card), Scribble's hoop race, bouncy mushrooms (`bouncy_at`), Smudgie `nest`, `_check_tasks`.
+  Saved in `pages.<id>.eaten` (`b_*` = stars, `reveal:<id>` = revealed). `PAGE_STARS`, `STARS_TO_OPEN` (5).
+- World Map (`_build_worldmap`): `STAMPS` = one stamp per chapter (id, pos, colour, chapter, page, title; "" = not built).
+  `main.gd` sets `world.map_done` / `map_stars` / `map_at` / `map_new` before loading it; a stamp opens when the one before is
+  at 5 Bloom Stars, a chapter region (`_chapter_of`) paints once it reaches that. The mochi is `size` 1.7 there
   (scales body, speed, hop) and the camera/fog pull back. Save keeps `map_at` (last stamp used).
 - `mochi.gd`: `CharacterBody3D`; visual squash/stretch on child `bob`; powers (`puffy` glide, `stone` stomp),
   stamina (shown on the face + thought clouds, **no bars**), eating faces (gape/munch), emotes via glTF
@@ -70,12 +74,15 @@ The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sket
 ## Status (2026-11-01)
 
 Playable slice done: Home Page (book -> World Map, mirror -> creator, sticker board), a walkable **World Map**
-(stamps, paths, regions painting in as pages finish; only 1-1 has a page so far) and **Meadow 1** (8 drops, 5 stickers,
-Puffy glide gap, Stone switch + bridge, Smudgies, checkpoints, Paint Seal). Sprint/stamina, double jump,
+(chapter stamps with star counts, paths, regions painting in) and the open **Meadow** (12 Bloom Stars: climbs, a glide,
+nest, cage switch, mushroom bounce, rooftop, 3 doodle-friend quests incl. a hoop race, all drops, and the old
+Meadow 1 run as the "Ink Trail" off the north edge; 14 drops, 5 stickers,
+Smudgies, checkpoints). Sprint/stamina, double jump,
 big-mouth inhale + gulp, 6 emotes, music + SFX, gamepad. Verified by the autotest, **not yet hand-playtested**.
 
-Next candidates: hand playtest + tuning; camera collision (clips through props); spit bounce; more pages (1-2 ...) /
-chapters; the Eraser; doodle NPC friends; decorating the Home Page with stickers; exporting a Windows build.
+Next candidates: hand playtest + tuning; the Meadow feels sparse between landmarks (more props, paths, a pond);
+camera collision (clips through props); spit bounce; the Village page /
+more chapters; the Eraser; friends moving to the Home Page; decorating it with stickers; a Windows build.
 
 ## Working with the user
 

@@ -10,15 +10,25 @@ signal checkpoint_reached(index: int)
 signal switch_pressed
 signal smudgie_cleaned
 signal star_poofed
+signal bloom_revealed(id: String)
+signal race_update(text: String)
+signal friend_said(title: String, text: String, seconds: float)
 
 const REACH := 1.7             # how close something edible must be for the mochi to start inhaling it
 const PAPER := Color("f8f6f0")
 const WHITE := Color.WHITE
 const ISLAND_DEPTH := 0.9
-const PAGES := {"meadow1": "Meadow 1"}
+const PAGES := {"meadow": "The Meadow"}
+const PAGE_STARS := {"meadow": 12}   # Bloom Stars hidden on each page
+const STARS_TO_OPEN := 5        # Bloom Stars from a chapter that open the path to the next one
+const RACE_TIME := 30.0
 
 var level := ""
-var edibles: Array[Dictionary] = []      # kind: drop | power | sticker | smudgie | seal
+var edibles: Array[Dictionary] = []      # kind: drop | power | sticker | smudgie | seal | bloom | item
+var friends := {}                        # doodle friends on this page, by id
+var bouncers: Array[Dictionary] = []     # bouncy mushroom caps
+var nest: Array = []                     # Smudgie ids whose cleanup earns b_nest
+var race := {"on": false, "next": 0, "t": 0.0, "hoops": []}
 var drops: Array[Dictionary] = []        # the paint drops (for the HUD)
 var smudgies: Array[Dictionary] = []
 var checkpoints: Array[Dictionary] = []
@@ -44,8 +54,10 @@ var _font: SystemFont
 func load_level(name: String, eaten: Array = []) -> void:
 	for c in get_children():
 		c.queue_free()
-	for list in [edibles, drops, smudgies, checkpoints, zones, paintables, clouds, switches, stars]:
+	for list in [edibles, drops, smudgies, checkpoints, zones, paintables, clouds, switches, stars, bouncers, nest]:
 		list.clear()
+	friends.clear()
+	race = {"on": false, "next": 0, "t": 0.0, "hoops": []}
 	active_checkpoint = 0
 	level = name
 	rng.seed = hash(name)
@@ -55,10 +67,15 @@ func load_level(name: String, eaten: Array = []) -> void:
 	elif name == "worldmap":
 		_build_worldmap()
 	else:
-		_build_meadow1()
+		_build_meadow()
+	for id in eaten:  # stars already earned stay revealed (or eaten, below)
+		if String(id).begins_with("reveal:"):
+			reveal_bloom(String(id).trim_prefix("reveal:"), true)
 	for e in edibles:
-		if e.id in eaten and e.kind in ["drop", "sticker"]:
+		if e.id in eaten and e.kind in ["drop", "sticker", "bloom", "item"]:
 			collect(e, true)
+	if level in PAGE_STARS and bloom_ids().all(func(id): return id in eaten):
+		_paint_all(true)
 
 
 func spawn_point() -> Vector3:
@@ -555,78 +572,391 @@ func _ui_font() -> SystemFont:
 # ================================================================== Meadow 1
 ## A path of islands running away from the camera (-z): hop gaps, a glide gap (Puffy), a switch bridge
 ## (Stone), a double-jump ledge and the Paint Seal at the end. 8 drops, 5 stickers.
-func _build_meadow1() -> void:
-	# A: start
-	island(0, 0, 8, 8, 0)
-	checkpoint(Vector3(0, 0, 2.5))
-	_tree(Vector3(-3.0, 0, 2.6))
-	_tree(Vector3(3.2, 0, -2.8), 1.2)
-	place(pencil(), Vector3(-2.2, 0, -1.4), 1.0, 0.0, -0.5, _box_shape(Vector3(4.6, 0.6, 0.6)), Vector3(0, 0.3, 0))
-	_scatter(flower, Vector3(-1.5, 0, -1.5), 2.0, 16)
-	paint_drop("d1", Vector3(1.6, 0, -1.8), "ffd86b")
-	sticker("s1", Vector3(-3.3, 0, 3.4))  # tucked behind the first tree
+func _build_meadow() -> void:
+	# The open Meadow: one big page to roam, with Bloom Stars to find all over it. Each star is won a
+	# different way (a climb, a glide, a quest, a race, a secret...). The old Meadow 1 run is the
+	# "Ink Trail" leaving from the north edge.
+	var ground := island(0, 0, 64, 60, 0.0)
+	_paint(ground.get_child(1), true)  # the grass is already pale green; the doodles on it are what need colour
+	checkpoint(Vector3(0, 0, 22))
+	_tree(Vector3(-3, 0, 25), 1.1)
+	_tree(Vector3(4.5, 0, 26), 1.0)
+	_scatter(flower, Vector3(0, 0, 18), 6.0, 30)
+	_scatter(flower, Vector3(-20, 0, 18), 6.0, 24)
+	_scatter(flower, Vector3(18, 0, -22), 5.0, 18)
+	for p in [[-28, 26], [-24, -2], [-27, -24], [27, 26], [28, 2], [10, 24], [-10, 26], [12, -26], [-6, -27], [24, -14]]:
+		_tree(Vector3(p[0], 0, p[1]), rng.randf_range(0.9, 1.3))
+	for p in [[-12, 4], [6, -8], [-26, 10], [20, 22]]:
+		_scatter(rock, Vector3(p[0], 0, p[1]), 1.2, 3, 0.7, 1.2)
+
+	# --- Pip, a sprout bean doodle who lost her bow (hidden in the meadow's far corner)
+	friend("pip", Vector3(3.5, 0, 17.5), "c3e2a0", "Pip", {
+		"ask": "Oh no, my bow blew away in the wind! It's a pink one... maybe by the far trees?",
+		"thanks": "My bow! You found it! Here, this Bloom Star is for you!",
+		"done": "I'll never take my bow off again. Thank you!"}, ["bow"])
+	item("bow", Vector3(-28.5, 0, -27.5), "ff9ab5")
+
+	# --- Tufts, a cloud-puff doodle missing three fluff-puffs
+	friend("tufts", Vector3(-9, 0, 15), "ffffff", "Tufts", {
+		"ask": "My three little fluff-puffs wandered off! One likes high places, one likes flowers, one hides by the trail.",
+		"thanks": "All three! Puff puff, hooray! Take this Bloom Star!",
+		"done": "My puffs are all snuggled up. Thank you!"}, ["puff1", "puff2", "puff3"])
+	item("puff1", Vector3(16.5, 3.0, -9.5), "ffffff")       # high: the hill summit
+	item("puff2", Vector3(19, 0, -24), "ffffff")            # flowers by the east meadow
+	item("puff3", Vector3(-4, 0, -28.5), "ffffff")          # by the Ink Trail gate
+
+	# --- Scribble the pencil stub: a hoop race
+	friend("scribble", Vector3(9, 0, 8), "ffd86b", "Scribble", {
+		"ask": "Race through my six ink hoops before I finish my doodle! Ready... GO!",
+		"thanks": "Whoa, speedy mochi! That Bloom Star is yours!",
+		"done": "Want to watch me doodle? ...no? Okay!",
+		"fail": "Hee hee, I finished first! Talk to me to try again."}, [])
+	for h in [[9, 2], [15, 5], [19, 12], [12, 15], [4, 11], [1, 4]]:
+		hoop(Vector3(h[0], 0, h[1]))
+	bloom("b_race", Vector3(9, 0, 6.2), true)
+
+	# --- The giant tree: branch platforms spiral up the trunk to a star in the crown
+	var tc := Vector3(-16, 0, 2)
+	var trunk := Node3D.new()
+	trunk.add_child(doodle(_cyl(0.9, 1.3, 7.5, 12), "d9b38c", Vector3(0, 3.75, 0), 0.05))
+	for b in [[0.0, 8.2, 0.0, 2.8], [1.8, 7.6, 0.8, 2.0], [-1.6, 7.7, -0.9, 2.1], [0.3, 9.4, -0.4, 1.8]]:
+		trunk.add_child(doodle(_sphere(b[3]), "a8d8a0", Vector3(b[0], b[1], b[2]), 0.05))
+	place(trunk, tc, 1.0, 4.0, 0.0, _cyl_shape(1.2, 7.5), Vector3(0, 3.75, 0))
+	for k in 6:
+		var a := k * 1.15
+		island(tc.x + cos(a) * 2.2, tc.z + sin(a) * 2.2, 1.7, 1.7, 0.9 + k * 0.95, "c3e2a0", 0.3)
+	island(tc.x + cos(6.9) * 2.0, tc.z + sin(6.9) * 2.0, 2.4, 2.4, 6.6, "c3e2a0", 0.3)
+	bloom("b_tree", Vector3(tc.x + cos(6.9) * 2.0, 6.6, tc.z + sin(6.9) * 2.0))
+	bloom("b_peek", Vector3(-17.2, 0, 4.7))  # hiding in the hollow behind the trunk
+	sticker("s1", Vector3(tc.x + cos(3.45) * 2.2, 0.9 + 3 * 0.95, tc.z + sin(3.45) * 2.2))
+
+	# --- The Hill: grassy terraces to climb, a cloud doodle at the top and an islet to glide to
+	var hc := Vector3(16, 0, -10)
+	for k in 6:
+		var s := 12.0 - 2.0 * k
+		island(hc.x, hc.z, s, s, 0.5 * (k + 1), "a9dd8f", 0.5 * (k + 1))
+	power_doodle("puffy", Vector3(hc.x - 0.4, 3.0, hc.z + 0.4))
+	island(27, -10, 2.6, 2.6, 1.6, "f6e3b4", 0.4)
+	bloom("b_glide", Vector3(27, 1.6, -10))
+	checkpoint(Vector3(hc.x - 7.5, 0, hc.z))
+	paint_drop("d9", Vector3(hc.x + 3.5, 1.5, hc.z + 3.5), "a8d8a0")
+
+	# --- The Smudgie nest: an ink puddle; clean every Smudgie and a star blooms from it
+	var nc := Vector3(-14, 0, -16)
+	var puddle := colored(_cyl(4.0, 4.0, 0.04, 28), "4a4552", nc + Vector3(0, 0.02, 0), 0.0, 0.0)
+	puddle.scale = Vector3(1.0, 1.0, 0.75)
+	add_child(puddle)
+	for i in 4:
+		var a := i / 4.0 * TAU
+		smudgie("n%d" % i, nc + Vector3(cos(a) * 1.8, 0, sin(a) * 1.4), 2.6)
+		nest.append("n%d" % i)
+	bloom("b_nest", nc + Vector3(0, 0, 0), true)
+	paint_drop("d10", Vector3(-20, 0, -12), "8fd0f5")
+
+	# --- The cage: a pebble doodle, a switch to stomp, and a star locked in a cage that sinks
+	power_doodle("stone", Vector3(8, 0, -15))
+	var cage := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	cs.shape = _box_shape(Vector3(1.8, 2.0, 1.8))
+	cs.position = Vector3(0, 1.0, 0)
+	cage.add_child(cs)
+	for bx in [-0.8, 0.0, 0.8]:
+		for bz in [-0.8, 0.8]:
+			cage.add_child(doodle(_cyl(0.06, 0.06, 2.0, 6), "c99a6a", Vector3(bx, 1.0, bz), 0.02))
+			cage.add_child(doodle(_cyl(0.06, 0.06, 2.0, 6), "c99a6a", Vector3(bz, 1.0, bx), 0.02))
+	cage.add_child(doodle(_box(1.9, 0.15, 1.9), "e6c79c", Vector3(0, 2.05, 0), 0.02, true))
+	cage.position = Vector3(4, 0, -20)
+	add_child(cage)
+	bloom("b_cage", Vector3(4, 0, -20))
+	switch(Vector3(6.8, 0, -18), cage, -2.3)
+	paint_drop("d11", Vector3(1, 0, -16), "e88f8f")
+
+	# --- The bouncy mushroom: boing up to a cloud with a star on it
+	var mush := Node3D.new()
+	mush.add_child(doodle(_cyl(0.35, 0.45, 0.8, 10), "fff1dc", Vector3(0, 0.4, 0), 0.03))
+	var cap := doodle(_sphere(1.1, 16, 8, true), "f2788e", Vector3(0, 0.7, 0), 0.04)
+	cap.scale = Vector3(1.0, 0.45, 1.0)
+	mush.add_child(cap)
+	place(mush, Vector3(-4, 0, -5), 1.0, 1.2, 0.0, _cyl_shape(1.0, 1.2), Vector3(0, 0.6, 0))
+	bouncers.append({"pos": Vector3(-4, 1.2, -5), "r": 1.05})
+	var sky := island(-4, -9.5, 3.0, 3.0, 4.6, "ffffff", 0.6)
+	sky.add_child(doodle(_sphere(1.0), "ffffff", Vector3(-1.2, -0.1, 0.6), 0.03))
+	sky.add_child(doodle(_sphere(0.9), "ffffff", Vector3(1.3, -0.15, -0.4), 0.03))
+	bloom("b_sky", Vector3(-4, 4.6, -9.5))
+	sticker("s2", Vector3(-27, 0, -12))
+
+	# --- The village corner: two houses, crates to climb, a star on a rooftop
+	place(house(), Vector3(22, 0, 17), 1.2, 2.4, -0.3, _box_shape(Vector3(1.6, 2.0, 1.3)), Vector3(0, 1.0, 0))
+	place(house(), Vector3(26.5, 0, 14), 1.2, 2.4, 0.4, _box_shape(Vector3(1.6, 2.0, 1.3)), Vector3(0, 1.0, 0))
+	for c in [[20.2, 18.8, 0.7], [19.4, 20.0, 1.4]]:
+		var crate := island(c[0], c[1], 1.1, 1.1, c[2], "e6c79c", 0.7)
+		crate.position.y = c[2] - 0.35
+	bloom("b_roof", Vector3(22, 2.4, 17))
+	sticker("s3", Vector3(28.5, 0, 16))  # behind the second house
+	paint_drop("d12", Vector3(24, 0, 20.5), "f5c35b")
+
+	# --- more paint drops around the meadow; eat them all and the last star blooms in the middle
+	paint_drop("d13", Vector3(-8, 0, 9), "ff9ab5")
+	paint_drop("d14", Vector3(-26, 0, 20), "b9a2ee")
+	bloom("b_drops", Vector3(0, 0, 10), true)
+
+	_meadow_trail(-34.0)
+	sticker("s4", Vector3(-30, 0, 28))
+
+
+## The Ink Trail: the original Meadow 1 run, leaving the north edge of the meadow at z = -30.
+func _meadow_trail(o: float) -> void:
+	# A: the gate
+	island(0, o, 8, 8, 0)
+	checkpoint(Vector3(-2.5, 0, o + 2.0))
+	place(pencil(), Vector3(-2.2, 0, o - 1.4), 1.0, 0.0, -0.5, _box_shape(Vector3(4.6, 0.6, 0.6)), Vector3(0, 0.3, 0))
+	paint_drop("d1", Vector3(1.6, 0, o - 1.8), "ffd86b")
 	# B, C: little hops
-	island(0, -7.5, 4, 4, 0)
-	paint_drop("d2", Vector3(0, 0, -7.5), "ff9ab5")
-	island(2.2, -12, 3, 3, 0.45)
-	paint_drop("d3", Vector3(2.2, 0.45, -12), "b9a2ee")
+	island(0, o - 7.5, 4, 4, 0)
+	paint_drop("d2", Vector3(0, 0, o - 7.5), "ff9ab5")
+	island(2.2, o - 12, 3, 3, 0.45)
+	paint_drop("d3", Vector3(2.2, 0.45, o - 12), "b9a2ee")
 	# D: Smudgies and the cloud
-	island(0, -18.5, 8, 6, 0)
-	checkpoint(Vector3(-2.5, 0, -16.3))
-	power_doodle("puffy", Vector3(2.6, 0, -19.6))
-	smudgie("m1", Vector3(-1.5, 0, -19.5), 1.6)
-	smudgie("m2", Vector3(1.0, 0, -17.5), 1.4)
-	paint_drop("d4", Vector3(-3.0, 0, -20.6), "8fd0f5")
-	paint_drop("d5", Vector3(3.0, 0, -16.4), "a8d8a0")
-	_scatter(mushroom, Vector3(-3.0, 0, -20.6), 0.9, 4)
-	sticker("s2", Vector3(-3.5, 0, -21.1))  # behind the mushrooms
-	_tree(Vector3(3.4, 0, -21.0), 0.9)
+	island(0, o - 18.5, 8, 6, 0)
+	checkpoint(Vector3(-2.5, 0, o - 16.3))
+	power_doodle("puffy", Vector3(2.6, 0, o - 19.6))
+	smudgie("m1", Vector3(-1.5, 0, o - 19.5), 1.6)
+	smudgie("m2", Vector3(1.0, 0, o - 17.5), 1.4)
+	paint_drop("d4", Vector3(-3.0, 0, o - 20.6), "8fd0f5")
+	paint_drop("d5", Vector3(3.0, 0, o - 16.4), "a8d8a0")
+	_scatter(mushroom, Vector3(-3.0, 0, o - 20.6), 0.9, 4)
+	_tree(Vector3(3.4, 0, o - 21.0), 0.9)
 	# glide gap -> E: the pebble, the switch and the bridge
-	island(0, -31.5, 7, 8, -0.6)
-	checkpoint(Vector3(0, -0.6, -28.6))
-	power_doodle("stone", Vector3(-2.3, -0.6, -31.0))
-	paint_drop("d6", Vector3(0.6, -0.6, -32.2), "e88f8f")
-	_scatter(rock, Vector3(2.4, -0.6, -29.5), 0.8, 3, 0.6, 1.0)
-	island(7.4, -31.5, 2, 2, -0.2, "f6e3b4")  # a side islet only a glide reaches
-	sticker("s3", Vector3(7.4, -0.2, -31.5))
-	var br := bridge(0, -38.0, 5.0, -0.6)
+	island(0, o - 31.5, 7, 8, -0.6)
+	checkpoint(Vector3(0, -0.6, o - 28.6))
+	power_doodle("stone", Vector3(-2.3, -0.6, o - 31.0))
+	paint_drop("d6", Vector3(0.6, -0.6, o - 32.2), "e88f8f")
+	_scatter(rock, Vector3(2.4, -0.6, o - 29.5), 0.8, 3, 0.6, 1.0)
+	island(7.4, o - 31.5, 2, 2, -0.2, "f6e3b4")  # a side islet only a glide reaches
+	sticker("s5", Vector3(7.4, -0.2, o - 31.5))
+	var br := bridge(0, o - 38.0, 5.0, -0.6)
 	br.position.y -= 4.0  # starts sunk below; the switch raises it
-	switch(Vector3(2.0, -0.6, -34.6), br, br.position.y + 4.0)
-	# F: more Smudgies, a pillar sticker
-	island(0, -44, 7, 7, -0.6)
-	checkpoint(Vector3(0, -0.6, -41.4))
-	smudgie("m3", Vector3(-1.8, -0.6, -44.0), 1.6)
-	smudgie("m4", Vector3(1.8, -0.6, -45.0), 1.6)
-	smudgie("m5", Vector3(0.2, -0.6, -42.6), 1.2)
-	paint_drop("d7", Vector3(-2.5, -0.6, -42.2), "f5c35b")
-	paint_drop("d8", Vector3(2.6, -0.6, -46.4), "9fd0b4")
-	island(-2.8, -46.0, 1.0, 1.0, 0.35, "e3e6ef")  # a pillar: double jump up
-	sticker("s4", Vector3(-2.8, 0.35, -46.0))
-	place(house(), Vector3(2.9, -0.6, -42.0), 0.8, 2.0, -0.6, _box_shape(Vector3(1.6, 1.4, 1.3)), Vector3(0, 0.7, 0))
-	# G: the ledge with the Paint Seal
-	island(0, -50.5, 4, 4, 0.3)
-	paint_seal(Vector3(0, 0.3, -51.2))
-	sticker("s5", Vector3(1.5, 0.3, -52.1))  # peek behind the seal
-	_tree(Vector3(-1.4, 0.3, -52.0), 0.8)
+	switch(Vector3(2.0, -0.6, o - 34.6), br, br.position.y + 4.0)
+	# F: more Smudgies
+	island(0, o - 44, 7, 7, -0.6)
+	checkpoint(Vector3(0, -0.6, o - 41.4))
+	smudgie("m3", Vector3(-1.8, -0.6, o - 44.0), 1.6)
+	smudgie("m4", Vector3(1.8, -0.6, o - 45.0), 1.6)
+	smudgie("m5", Vector3(0.2, -0.6, o - 42.6), 1.2)
+	paint_drop("d7", Vector3(-2.5, -0.6, o - 42.2), "f5c35b")
+	paint_drop("d8", Vector3(2.6, -0.6, o - 46.4), "9fd0b4")
+	place(house(), Vector3(2.9, -0.6, o - 42.0), 0.8, 2.0, -0.6, _box_shape(Vector3(1.6, 1.4, 1.3)), Vector3(0, 0.7, 0))
+	# G: the ledge at the end, with its Bloom Star
+	island(0, o - 50.5, 4, 4, 0.3)
+	bloom("b_trail", Vector3(0, 0.3, o - 51.2))
+	_tree(Vector3(-1.4, 0.3, o - 52.0), 0.8)
+
+
+# ================================================================== Bloom Stars, friends, quests
+## A Bloom Star: the page's main prize. `hidden` ones appear once their task is done (`reveal_bloom`).
+func bloom(id: String, pos: Vector3, hidden := false) -> void:
+	var node := Node3D.new()
+	node.add_child(colored(_star_mesh(0.5, 0.22, 0.12), "ffd86b", Vector3.ZERO, 0.03, 0.35))
+	node.add_child(colored(_sphere(0.13, 10, 6), "fff6c8", Vector3(0, 0, 0.1), 0.0, 0.0))
+	node.position = pos + Vector3(0, 0.9, 0)
+	var e := _edible("bloom", id, node)
+	if hidden:
+		node.visible = false
+		e.shadow.visible = false
+
+
+func reveal_bloom(id: String, instant := false) -> void:
+	for e in edibles:
+		if e.id == id and e.kind == "bloom" and not e.got and not e.node.visible:
+			e.node.visible = true
+			e.shadow.visible = true
+			if not instant:
+				e.node.scale = Vector3.ONE * 0.01
+				create_tween().tween_property(e.node, "scale", Vector3.ONE, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				_splash(e.node.global_position, Color("ffd86b"))
+				bloom_revealed.emit(id)
+
+
+func bloom_shown(id: String) -> bool:
+	for e in edibles:
+		if e.id == id:
+			return e.got or e.node.visible
+	return false
+
+
+func bloom_ids() -> Array:
+	return edibles.filter(func(e): return e.kind == "bloom").map(func(e): return e.id)
+
+
+## Something a friend lost. Eating it keeps it safe in the mochi's cheeks until it's handed back.
+func item(id: String, pos: Vector3, color: String) -> void:
+	var node := Node3D.new()
+	if id == "bow":
+		for sx in [-1.0, 1.0]:
+			var loop := colored(_sphere(0.17, 10, 6), color, Vector3(sx * 0.17, 0, 0), 0.02, 0.15)
+			loop.scale = Vector3(1.0, 0.75, 0.45)
+			node.add_child(loop)
+		node.add_child(colored(_sphere(0.08, 8, 5), color, Vector3.ZERO, 0.02, 0.15))
+	else:  # a fluff-puff with two dot eyes
+		node.add_child(colored(_sphere(0.2, 12, 8), color, Vector3.ZERO, 0.02, 0.2))
+		for sx in [-1.0, 1.0]:
+			node.add_child(colored(_sphere(0.03, 6, 4), "1f1d24", Vector3(sx * 0.07, 0.04, 0.18), 0.0, 0.0))
+	node.position = pos + Vector3(0, 0.55, 0)
+	_edible("item", id, node)
+
+
+func has_item(id: String) -> bool:
+	for e in edibles:
+		if e.id == id and e.kind == "item":
+			return e.got
+	return false
+
+
+## A doodle friend who lives on the page. Talk (E) for their request; bring back `wants` for a Bloom Star.
+func friend(id: String, pos: Vector3, color: String, title: String, lines: Dictionary, wants: Array) -> void:
+	var g := Node3D.new()
+	match id:
+		"pip":  # a sprout bean
+			var body := doodle(_sphere(0.42, 14, 10), color, Vector3(0, 0.45, 0), 0.03)
+			body.scale = Vector3(0.85, 1.1, 0.85)
+			g.add_child(body)
+			g.add_child(doodle(_cyl(0.03, 0.04, 0.3, 6), "6fae8c", Vector3(0, 1.05, 0), 0.015))
+			var leaf := doodle(_sphere(0.16, 10, 6), "6fae8c", Vector3(0.12, 1.2, 0), 0.015)
+			leaf.scale = Vector3(1.0, 0.35, 0.6)
+			g.add_child(leaf)
+		"tufts":  # a cloud puff on little ink legs
+			for b in [[0.36, 0.0, 0.7, 0.0], [0.28, 0.32, 0.72, 0.05], [0.28, -0.32, 0.72, -0.05], [0.26, 0.0, 0.98, 0.0]]:
+				g.add_child(doodle(_sphere(b[0]), color, Vector3(b[1], b[2], b[3]), 0.03))
+			for lx in [-0.18, 0.18]:
+				g.add_child(colored(_cyl(0.05, 0.05, 0.4, 6), "1f1d24", Vector3(lx, 0.2, 0), 0.0, 0.0))
+		_:  # a pencil stub standing on end
+			g.add_child(doodle(_cyl(0.3, 0.3, 0.9, 6), color, Vector3(0, 0.55, 0), 0.03))
+			g.add_child(doodle(_cyl(0.3, 0.3, 0.2, 10), "f2788e", Vector3(0, 1.1, 0), 0.02))
+			g.add_child(doodle(_cyl(0.0, 0.3, 0.35, 6), "f3d2a6", Vector3(0, -0.07, 0), 0.02))
+	for sx in [-1.0, 1.0]:  # the same dot eyes for everyone
+		g.add_child(colored(_sphere(0.05, 8, 5), "1f1d24", Vector3(sx * 0.12, 0.62, 0.33), 0.0, 0.0))
+	place(g, pos, 1.0, 0.9, 0.0, _cyl_shape(0.4, 1.2), Vector3(0, 0.6, 0))
+	_paint_tree(g)  # friends are always in colour, so they stand out on the ink page
+	var mark := Label3D.new()  # a bouncing "!" while they still need help
+	mark.text = "!"
+	mark.font = _ui_font()
+	mark.font_size = 96
+	mark.pixel_size = 0.006
+	mark.modulate = Color("e3789a")
+	mark.outline_modulate = Color.WHITE
+	mark.outline_size = 18
+	mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	mark.position = pos + Vector3(0, 1.9, 0)
+	add_child(mark)
+	friends[id] = {"node": g, "home": pos, "lines": lines, "wants": wants, "mark": mark, "said": "",
+		"star": "b_race" if id == "scribble" else "b_" + id, "title": title}
+	zone("friend", pos, 2.0, "E  Talk to %s" % title)
+	zones[-1]["friend"] = id
+	if not wants.is_empty():
+		bloom("b_" + id, pos + Vector3(1.3, 0, 0.6), true)
+
+
+func say(id: String, text: String, seconds := 4.0) -> void:
+	var f: Dictionary = friends[id]
+	f.said = text
+	friend_said.emit(f.title, text, seconds)
+
+
+func _paint_tree(node: Node) -> void:
+	for c in node.get_children():
+		if c is GeometryInstance3D and c.has_meta("paint"):
+			_paint(c, true)
+
+
+## Talking to a friend: thank them for what you bring, or hear what they need.
+func talk(id: String) -> void:
+	var f: Dictionary = friends[id]
+	if bloom_shown(f.star):
+		say(id, f.lines.done)
+	elif id == "scribble":
+		say(id, f.lines.ask, 3.0)
+		_start_race()
+	elif f.wants.all(func(w): return has_item(w)):
+		say(id, f.lines.thanks)
+		reveal_bloom(f.star)
+	else:
+		var got: int = f.wants.filter(func(w): return has_item(w)).size()
+		say(id, f.lines.ask + ("" if got == 0 else "  (%d / %d found)" % [got, f.wants.size()]), 5.0)
+
+
+func hoop(pos: Vector3) -> void:
+	var ring := colored(TorusMesh.new(), "1f1d24", pos + Vector3(0, 1.0, 0), 0.0, 0.1)
+	ring.mesh.inner_radius = 0.75
+	ring.mesh.outer_radius = 0.9
+	ring.rotation.x = PI / 2.0
+	ring.visible = false
+	add_child(ring)
+	race.hoops.append(ring)
+
+
+func _start_race() -> void:
+	race.on = true
+	race.next = 0
+	race.t = RACE_TIME
+	for h in race.hoops:
+		h.visible = true
+		h.scale = Vector3.ONE
+	race_update.emit("Hoop 0 / %d" % race.hoops.size())
+
+
+func _tick_race(delta: float, player_pos: Vector3) -> void:
+	if not race.on:
+		return
+	race.t -= delta
+	var h: Node3D = race.hoops[race.next]
+	h.rotation.z += delta * 2.0
+	if player_pos.distance_to(h.global_position - Vector3(0, 0.6, 0)) < 1.4:
+		h.visible = false
+		_splash(h.global_position, Color("ffd86b"))
+		race.next += 1
+		race_update.emit("Hoop %d / %d" % [race.next, race.hoops.size()])
+		if race.next == race.hoops.size():
+			race.on = false
+			say("scribble", friends.scribble.lines.thanks)
+			reveal_bloom("b_race")
+	elif race.t <= 0.0:
+		race.on = false
+		for r in race.hoops:
+			r.visible = false
+		say("scribble", friends.scribble.lines.fail)
+		race_update.emit("Time's up!")
+
+
+## Standing on a bouncy mushroom cap?
+func bouncy_at(pos: Vector3) -> bool:
+	for b in bouncers:
+		if Vector2(pos.x - b.pos.x, pos.z - b.pos.z).length() < b.r and absf(pos.y - b.pos.y) < 0.3:
+			return true
+	return false
+
+
+## Tasks finished by what the mochi does on the page (not by talking): nest cleared, every drop eaten.
+func _check_tasks() -> void:
+	if not nest.is_empty() and not bloom_shown("b_nest"):
+		if smudgies.filter(func(m): return m.id in nest and not m.got).is_empty():
+			reveal_bloom("b_nest")
+	if level == "meadow" and drops_left() == 0 and not bloom_shown("b_drops"):
+		reveal_bloom("b_drops")
 
 
 # ================================================================== the World Map (playable book map)
-## Level stamps in play order: id, x, z, colour, chapter, page it opens ("" = not drawn yet).
+## Chapter stamps in play order: id, x, z, colour, chapter, page it opens ("" = not drawn yet), title.
 const STAMPS := [
-	["1-1", -18.0, 10.5, "ff9ab5", 1, "meadow1"], ["1-2", -12.5, 12.0, "ff9ab5", 1, ""],
-	["1-3", -7.5, 9.0, "ff9ab5", 1, ""], ["1-E", -9.5, 3.0, "26232b", 1, ""],
-	["2-1", -17.0, -1.5, "f5c35b", 2, ""], ["2-2", -11.5, -6.5, "f5c35b", 2, ""],
-	["2-3", -6.0, -7.0, "f5c35b", 2, ""], ["2-E", -12.5, -11.0, "26232b", 2, ""],
-	["3-1", 5.5, 11.5, "7fb5ec", 3, ""], ["3-2", 10.5, 11.8, "7fb5ec", 3, ""],
-	["3-3", 18.5, 11.0, "7fb5ec", 3, ""], ["3-E", 18.0, 2.5, "26232b", 3, ""],
-	["4-1", 5.5, -6.5, "a585e0", 4, ""], ["4-2", 11.0, -6.8, "a585e0", 4, ""],
-	["4-3", 16.0, -12.0, "a585e0", 4, ""], ["4-E", 6.0, -11.5, "26232b", 4, ""],
+	["1", -18.0, 10.5, "ff9ab5", 1, "meadow", "The Meadow"], ["2", -17.0, -1.5, "f5c35b", 2, "", "The Village"],
+	["3", 5.5, 11.5, "7fb5ec", 3, "", "Seaside"], ["4", 5.5, -6.5, "a585e0", 4, "", "Snowy Notebook"],
+	["E", 0.0, -11.5, "26232b", 0, "", "The Eraser's Castle"],
 ]
 const CHAPTER_CENTERS := {1: Vector3(-11, 0, 7), 2: Vector3(-11, 0, -6), 3: Vector3(11, 0, 7), 4: Vector3(11, 0, -6)}
 const HOME_STAMP := Vector3(0, 0, 11.0)
 
-var map_done: Array = []        # stamp ids whose page is painted
-var map_at := "1-1"             # where the mochi stands on the map
+var map_done: Array = []        # stamp ids whose chapter has enough Bloom Stars to open the next
+var map_stars := {}             # Bloom Stars found per stamp id
+var map_at := "1"               # where the mochi stands on the map
 var map_new := ""               # a stamp finished just now: its region and next path draw in with a flourish
 
 
@@ -759,7 +1089,11 @@ func _build_worldmap() -> void:
 		var open := stamp_open(i)
 		var done: bool = s[0] in map_done
 		add_child(colored(_cyl(0.75, 0.85, 0.3, 24), s[3] if open else "d6d1dd", pos + Vector3(0, 0.15, 0), 0.04, 0.15))
-		_map_label(s[0] if open else "?", pos + Vector3(0, 1.4, 0))
+		var total: int = PAGE_STARS.get(s[5], 0)
+		var label: String = s[6] if open else "?"
+		if open and total > 0:
+			label += "\n★ %d / %d" % [map_stars.get(s[0], 0), total]
+		_map_label(label, pos + Vector3(0, 2.4 if total > 0 else 1.4, 0))
 		if done:  # a gold star on painted pages
 			var st := colored(_star_mesh(0.45, 0.2, 0.08), "ffd86b", pos + Vector3(0, 0.95, 0), 0.03, 0.3)
 			add_child(st)
@@ -767,7 +1101,7 @@ func _build_worldmap() -> void:
 		if open:
 			var page: String = s[5]
 			zones.append({"id": "stamp", "stamp": s[0], "level": page, "pos": pos, "radius": 1.0,
-				"prompt": "E  Enter %s%s" % [s[0], (": " + PAGES[page]) if page != "" else ""]})
+				"prompt": "E  Enter %s" % s[6]})
 		if prev != Vector3.INF and open:  # the path to this stamp is drawn once it opens
 			var fresh: bool = STAMPS[i - 1][0] == map_new
 			_dotted_path(prev, pos, fresh)
@@ -831,7 +1165,7 @@ func _map_label(text: String, pos: Vector3) -> void:
 	label.text = text
 	label.font = _ui_font()
 	label.font_size = 96
-	label.pixel_size = 0.008
+	label.pixel_size = 0.0065
 	label.modulate = Color("1f1d24")
 	label.outline_modulate = Color.WHITE
 	label.outline_size = 18
@@ -885,7 +1219,7 @@ func pull(e: Dictionary, mouth: Vector3, delta: float) -> bool:
 	var near := 1.0 - clampf(dist / REACH, 0.0, 1.0)
 	var speed := 0.7 + 4.5 * near * near
 	m.global_position += to.normalized() * minf(dist, speed * delta)
-	var s := clampf(dist / REACH * 1.3, 0.3, 1.0) * (1.6 if e.kind == "seal" else 1.0)
+	var s := clampf(dist / REACH * 1.3, 0.3, 1.0) * (1.6 if e.kind in ["seal", "bloom"] else 1.0)
 	s = minf(s, 1.0)
 	m.scale = Vector3(s, s * (2.0 - s), s)
 	m.rotation.y += delta * 12.0
@@ -932,6 +1266,15 @@ func collect(e: Dictionary, instant := false) -> void:
 			_paint_all(instant)
 			if not instant:
 				_splash(p, Color("ff9ab5"))
+		"bloom":  # every Bloom Star colours the meadow around it; the last one paints the whole page
+			paint_around(p, 9.0, instant)
+			if bloom_ids().all(func(id): return edibles.any(func(b): return b.id == id and b.got)):
+				_paint_all(instant)
+			if not instant:
+				_splash(p, Color("ffd86b"))
+		"item":
+			if not instant:
+				_splash(p, Color("ffffff"))
 	if not instant:
 		ate.emit(e.kind, e)
 
@@ -1034,6 +1377,8 @@ func _poof(node: Node3D) -> void:
 ## Called by the game every frame while playing.
 func tick(delta: float, player_pos: Vector3) -> void:
 	_update_smudgies(delta, player_pos)
+	_tick_race(delta, player_pos)
+	_check_tasks()
 	for i in range(stars.size() - 1, -1, -1):
 		var s: Dictionary = stars[i]
 		s.t += delta
@@ -1108,8 +1453,16 @@ func _process(delta: float) -> void:
 		if e.got or e.sucking or e.kind == "smudgie":
 			continue
 		var n: Node3D = e.node
-		n.position.y = e.home.y + sin(time * 2.4 + e.home.x) * (0.05 if e.kind == "seal" else 0.08)
-		n.rotation.y = time * (0.6 if e.kind == "seal" else 1.5) + e.home.z
+		var slow: bool = e.kind in ["seal", "bloom"]
+		n.position.y = e.home.y + sin(time * 2.4 + e.home.x) * (0.05 if slow else 0.08)
+		n.rotation.y = time * (0.9 if slow else 1.5) + e.home.z
+	for id in friends:  # friends bob happily; a "!" bounces over anyone still needing help
+		var f: Dictionary = friends[id]
+		var hop := absf(sin(time * 3.0 + f.home.x))
+		f.node.position.y = f.home.y + hop * 0.06
+		f.node.scale = Vector3(1.0 + 0.04 * (1.0 - hop), 1.0 - 0.04 * (1.0 - hop), 1.0 + 0.04 * (1.0 - hop))
+		f.mark.visible = not bloom_shown(f.star)
+		f.mark.position.y = f.home.y + 1.9 + absf(sin(time * 4.0)) * 0.15
 	for c in clouds:
 		c.position.x += delta * 0.25
 		if c.position.x > 30.0:
