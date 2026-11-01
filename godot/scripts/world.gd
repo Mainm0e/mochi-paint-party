@@ -19,11 +19,11 @@ const REACH := 1.7             # how close something edible must be for the moch
 const PAPER := Color("f8f6f0")
 const WHITE := Color.WHITE
 const ISLAND_DEPTH := 0.9
-const PAGES := {"meadow": "The Meadow", "village": "The Village", "seaside": "Seaside"}
-const PAGE_STARS := {"meadow": 12, "village": 12, "seaside": 12}   # Bloom Stars hidden on each page
+const PAGES := {"meadow": "The Meadow", "village": "The Village", "seaside": "Seaside", "snowy": "Snowy Notebook"}
+const PAGE_STARS := {"meadow": 12, "village": 12, "seaside": 12, "snowy": 12}   # Bloom Stars hidden on each page
 const STARS_TO_OPEN := 5        # Bloom Stars from a chapter that open the path to the next one
-const SURFACES := {"d9b38c": "wood", "e6c79c": "wood", "c99a6a": "wood", "f6e3b4": "sand"}  # by paper colour
-const PAGE_SURFACE := {"village": "stone", "seaside": "sand"}  # what the ground is, page by page
+const SURFACES := {"d9b38c": "wood", "e6c79c": "wood", "c99a6a": "wood", "f6e3b4": "sand", "cfe9f7": "ice"}  # by paper colour
+const PAGE_SURFACE := {"village": "stone", "seaside": "sand", "snowy": "snow"}  # what the ground is, page by page
 const RACE_TIME := 30.0
 const TIDE_HIGH := 0.2          # sea level at high tide (Seaside)
 const TIDE_LOW := -1.2
@@ -45,6 +45,10 @@ var tide := {}                           # Seaside: {t, level, phase}; empty on 
 var sea: Node3D                          # the sea surface you see
 var sea_body: StaticBody3D               # ...and the layer Bubble Mochi walks on
 var floats: Array = []                   # things riding the tide (the buoy and its star)
+var meltables: Array = []                # ice Toasty Mochi can melt
+var cold_water: Array[Rect2] = []        # icy water (x/z rects): fall in and you're redrawn
+var sky_path: Array = []                 # Snowy Notebook's constellation platforms, shown at night
+var night := false
 var _keep: Array = []                    # [x, z, radius] spots props must stay clear of
 var reveals := {}                        # editor pages: hidden star id -> "drops" / "smudgies" (what reveals it)
 var drops: Array[Dictionary] = []        # the paint drops (for the HUD)
@@ -81,6 +85,10 @@ func load_level(name: String, eaten: Array = []) -> void:
 	spinners.clear()
 	tide = {}
 	floats.clear()
+	meltables.clear()
+	cold_water.clear()
+	sky_path.clear()
+	night = false
 	_keep.clear()
 	reveals.clear()
 	race = {"on": false, "next": 0, "t": 0.0, "hoops": [], "friend": "", "star": "", "time": RACE_TIME}
@@ -92,6 +100,8 @@ func load_level(name: String, eaten: Array = []) -> void:
 		_build_home()
 	elif name == "worldmap":
 		_build_worldmap()
+	elif name == "snowy":
+		_build_snowy()
 	elif name == "seaside":
 		_build_seaside()
 	elif name == "village":
@@ -465,6 +475,15 @@ func power_doodle(power: String, pos: Vector3) -> void:
 	if power == "puffy":
 		for b in [[0.17, 0.0, 0.0], [0.13, 0.17, -0.02], [0.13, -0.17, 0.0], [0.11, 0.05, 0.12]]:
 			node.add_child(colored(_sphere(b[0]), "ffffff", Vector3(b[1], b[2], 0.0), 0.02))
+	elif power == "toasty":  # a glowing ember
+		node.add_child(colored(_sphere(0.2, 8, 5), "ff9b4a", Vector3.ZERO, 0.02, 0.6))
+		node.add_child(colored(_cyl(0.0, 0.14, 0.3, 6), "ffe07a", Vector3(0, 0.2, 0), 0.0, 0.6))
+	elif power == "boing":  # a little spring
+		for k in 4:
+			var ring := colored(TorusMesh.new(), "8fc98a", Vector3(0, -0.15 + k * 0.1, 0), 0.01, 0.2)
+			ring.mesh.inner_radius = 0.1
+			ring.mesh.outer_radius = 0.17
+			node.add_child(ring)
 	elif power == "bubble":  # a soap bubble with a shine
 		node.add_child(colored(_sphere(0.22, 14, 10), "bfe6ff", Vector3.ZERO, 0.015, 0.7))
 		node.add_child(colored(_sphere(0.05, 8, 5), "ffffff", Vector3(-0.08, 0.1, 0.17), 0.0, 0.0))
@@ -879,6 +898,11 @@ func item(id: String, pos: Vector3, color: String) -> void:
 	elif id.begins_with("letter"):  # an envelope with a heart seal
 		node.add_child(colored(_box(0.42, 0.28, 0.05), color, Vector3.ZERO, 0.02, 0.1))
 		node.add_child(colored(_sphere(0.06, 8, 5), "f2788e", Vector3(0, 0, 0.04), 0.0, 0.0))
+	elif id.begins_with("yarn"):  # a ball of yarn with a loose end
+		node.add_child(colored(_sphere(0.2, 12, 8), color, Vector3.ZERO, 0.02, 0.15))
+		var end := colored(_cyl(0.02, 0.02, 0.35, 5), color, Vector3(0.18, -0.12, 0), 0.01, 0.1)
+		end.rotation.z = 1.2
+		node.add_child(end)
 	elif id.begins_with("shell"):  # a little spiral shell
 		var sh := colored(_cyl(0.0, 0.2, 0.3, 7), color, Vector3.ZERO, 0.02, 0.2)
 		sh.rotation.z = 1.2
@@ -929,6 +953,22 @@ func friend(id: String, pos: Vector3, color: String, title: String, lines: Dicti
 			g.add_child(doodle(_box(0.62, 0.5, 0.5), color, Vector3(0, 0.72, 0), 0.025, true))
 			var flag := doodle(_box(0.05, 0.3, 0.12), "f2788e", Vector3(0.34, 0.85, -0.1), 0.01, true)
 			g.add_child(flag)
+		"mitten":  # a knitted mitten with a cuff
+			var hand := doodle(_sphere(0.45, 14, 8), color, Vector3(0, 0.62, 0), 0.03)
+			hand.scale = Vector3(0.95, 1.25, 0.6)
+			g.add_child(hand)
+			var thumb := doodle(_sphere(0.18, 10, 6), color, Vector3(0.45, 0.7, 0), 0.02)
+			thumb.scale = Vector3(0.8, 1.3, 0.8)
+			g.add_child(thumb)
+			g.add_child(doodle(_cyl(0.42, 0.42, 0.25, 12), "fffaf0", Vector3(0, 0.12, 0), 0.02))
+		"owl":  # a round owl with ear tufts
+			var body := doodle(_sphere(0.45, 14, 8), color, Vector3(0, 0.55, 0), 0.03)
+			body.scale = Vector3(0.95, 1.05, 0.85)
+			g.add_child(body)
+			for sx in [-1.0, 1.0]:
+				g.add_child(doodle(_cyl(0.0, 0.1, 0.25, 4), color, Vector3(sx * 0.25, 1.05, 0), 0.015))
+				g.add_child(colored(_sphere(0.11, 10, 6), "fffaf0", Vector3(sx * 0.12, 0.62, 0.32), 0.0, 0.0))
+			g.add_child(doodle(_cyl(0.0, 0.06, 0.14, 4), "ffd86b", Vector3(0, 0.5, 0.38), 0.01))
 		"crab":  # a round crab with two little claws up
 			var shell := doodle(_sphere(0.45, 14, 8), color, Vector3(0, 0.4, 0), 0.03)
 			shell.scale = Vector3(1.2, 0.75, 0.9)
@@ -1701,7 +1741,284 @@ func _tick_tide(delta: float) -> void:
 
 ## Under the sea surface (and not a bubble)? The mochi is splashed out and redrawn.
 func in_sea(pos: Vector3) -> bool:
+	if cold_water.any(func(r: Rect2): return r.has_point(Vector2(pos.x, pos.z))) and pos.y < -0.25:
+		return true
 	return not tide.is_empty() and pos.z < 4.0 and pos.y < tide.level - 0.3
+
+
+# ================================================================== Chapter 4: the Snowy Notebook
+## The Snowy Notebook: a snowfield with a frozen lake of slippery floes (east), Boing cliffs (west), an ice castle
+## and an icicle cave (north), a giant pine and a sled trail. Powers: Toasty Mochi (melt ice) and Boing Mochi
+## (super hops). After the third star night falls and a path of constellation stars appears in the sky.
+func _build_snowy() -> void:
+	# ground in four pieces around the lake (x 10..28, z -4..12), which is open cold water between ice floes
+	for g in [[-11, 0, 42, 60], [30, 0, 4, 60], [19, -17, 18, 26], [19, 21, 18, 18]]:
+		var piece := island(g[0], g[1], g[2], g[3], 0.0, "f4f8ff")
+		_paint(piece.get_child(1), true)
+	var lake_water := colored(_box(18, 0.1, 16), "6fa8d6", Vector3(19, -0.45, 4), 0.0, 0.2)
+	add_child(lake_water)
+	cold_water.append(Rect2(10, -4, 18, 16))
+	checkpoint(Vector3(0, 0, 24))
+
+	# --- the Camp (south): a campfire, the ember and spring pedestals, Knit and Hoot
+	var fire := Node3D.new()
+	for k in 5:
+		var wood := doodle(_cyl(0.12, 0.12, 1.2, 7), "a8755a", Vector3(0, 0.12, 0), 0.02)
+		wood.rotation = Vector3(PI / 2.0, k * TAU / 5.0, 0)
+		fire.add_child(wood)
+	fire.add_child(colored(_cyl(0.0, 0.4, 0.8, 7), "ff9b4a", Vector3(0, 0.55, 0), 0.02, 0.5))
+	fire.add_child(colored(_cyl(0.0, 0.22, 0.55, 7), "ffe07a", Vector3(0, 0.5, 0), 0.0, 0.6))
+	place(fire, Vector3(0, 0, 17), 1.0, 1.4, 0.0, _cyl_shape(0.6, 0.6), Vector3(0, 0.3, 0))
+	power_doodle("toasty", Vector3(-3.5, 0, 13))
+	power_doodle("boing", Vector3(3.5, 0, 13))
+	_signpost(Vector3(-3.5, 0, 11), "Melt the ice!")
+	_signpost(Vector3(3.5, 0, 11), "Boing up!")
+	friend("knit", Vector3(-6, 0, 20), "e88f8f", "Knit", {
+		"ask": "Brrr! I dropped three balls of yarn: one on the cliffs, one out on the lake, one in the pine woods. I need them to stay warm!",
+		"thanks": "All my yarn! Now I can knit a scarf. Take this Bloom Star, it's toasty!",
+		"done": "Knit one, purl one... so cosy."}, ["yarn1", "yarn2", "yarn3"], "mitten")
+	friend("hoot", Vector3(10, 0, 20), "c9b8a0", "Hoot", {
+		"ask": "Hoo! Skate my six hoops around the frozen lake before the moon blinks. Go go go!",
+		"thanks": "Hoo-ray! Nimble as a snowflake. The Bloom Star is yours.",
+		"done": "Hoo hoo. Lovely evening.",
+		"fail": "Hoo, too slow! Ask me again."}, [], "owl")
+	race.friend = "hoot"
+	race.star = "b_hoot"
+	race.time = 34.0
+	friends.hoot.star = "b_hoot"
+	for h in [[8, 15], [20, 14], [29, 6], [24, -7], [12, -7], [8, 3]]:
+		hoop(Vector3(h[0], 0, h[1]))
+	bloom("b_hoot", Vector3(11.3, 0, 21.5), true)
+
+	# --- the Frozen Lake: slippery floes over icy water; the star on the middle floe
+	for f in [[12, 9, 3.0], [16, 10, 2.4], [14.5, 5.5, 2.6], [19, 7, 3.2], [22.5, 9.5, 2.4], [23.5, 4.5, 2.6],
+			[19, 2, 2.4], [15, 0.5, 2.6], [20.5, -1.5, 2.2], [25.5, 0, 2.4], [12, -2, 2.2]]:
+		var floe := island(f[0], f[1], f[2], f[2] * 0.85, 0.05, "cfe9f7", 0.25)
+		_paint(floe.get_child(1), true)
+	bloom("b_lake", Vector3(19, 0.05, 7))
+	item("yarn2", Vector3(25.5, 0.05, 0), "8fd0f5")
+
+	# --- the Boing Cliffs (west): tall snowy steps, too tall for a normal hop
+	var cc := Vector3(-23, 0, 0)
+	for k in 3:
+		var s := 12.0 - 3.5 * k
+		var tier := island(cc.x, cc.z, s, s, 1.6 * (k + 1), "e6eef8", 1.6 * (k + 1))
+		_paint(tier.get_child(1), true)
+	bloom("b_cliff", cc + Vector3(0, 4.8, 0))
+	item("yarn1", cc + Vector3(5.2, 1.6, 5.2), "ff9ab5")
+	sticker("s1", cc + Vector3(-3.5, 3.2, -3.5))
+
+	# --- the Ice Castle (north-centre): a courtyard walled with ice; Toasty Mochi melts the gate
+	var ic := Vector3(0, 0, -16)
+	for w in [[0, -4, 9, 1], [-4, 0, 1, 9], [4, 0, 1, 9], [-2.75, 4, 3.5, 1], [2.75, 4, 3.5, 1]]:
+		_ice_block(ic + Vector3(w[0], 0, w[1]), Vector3(w[2], 3.4, w[3]), false)
+	for k in 4:  # little ice turrets on the corners
+		var t := doodle(_cyl(0.0, 0.7, 1.4, 6), "cfe9f7", ic + Vector3(-4 + 8 * (k % 2), 4.1, -4 + 8 * (k / 2)), 0.03)
+		add_child(t)
+	_ice_block(ic + Vector3(0, 0, 4), Vector3(2.0, 3.4, 1.0), true)  # the gate: meltable
+	bloom("b_gate", ic)
+	checkpoint(ic + Vector3(0, 0, 7.5))
+
+	# --- the Icicle Cave (north-west): snow walls and roof, a curtain of icicles across the mouth
+	var kc := Vector3(-14, 0, -18)
+	for w in [[0, -2.5, 6, 1, 3.0], [-2.5, 0, 1, 6, 3.0], [2.5, 0, 1, 6, 3.0]]:
+		var wall := island(kc.x + w[0], kc.z + w[1], w[2], w[3], w[4], "e6eef8", w[4])
+		_paint(wall.get_child(1), true)
+	var roof := island(kc.x, kc.z, 6.4, 6.4, 3.6, "f4f8ff", 0.6)
+	_paint(roof.get_child(1), true)
+	_ice_block(kc + Vector3(0, 0, 2.6), Vector3(4.0, 3.0, 0.6), true, true)  # icicles
+	bloom("b_icicle", kc + Vector3(0, 0, -0.5))
+	sticker("s2", kc + Vector3(0, 3.6, 0))  # on the roof
+
+	# --- the Giant Pine (north-west woods): branch platforms a Boing hop apart, a star in the crown
+	var pc := Vector3(-24, 0, -20)
+	var trunk := Node3D.new()
+	trunk.add_child(doodle(_cyl(0.7, 1.0, 9.0, 10), "a8755a", Vector3(0, 4.5, 0), 0.04))
+	for k in 4:
+		trunk.add_child(doodle(_cyl(0.0, 3.2 - k * 0.6, 2.4, 9), "6fae8c", Vector3(0, 3.5 + k * 1.9, 0), 0.04))
+	trunk.add_child(doodle(_cyl(0.0, 0.8, 0.8, 9), "ffffff", Vector3(0, 11.4, 0), 0.02))
+	place(trunk, pc, 1.0, 3.5, 0.0, _cyl_shape(0.9, 9.0), Vector3(0, 4.5, 0))
+	for k in 5:
+		var a := k * 1.3 + 0.4
+		var br := island(pc.x + cos(a) * 1.9, pc.z + sin(a) * 1.9, 1.3, 1.3, 1.6 * (k + 1), "8fc98a", 0.25)
+		_paint(br.get_child(1), true)
+	var crown := island(pc.x, pc.z, 2.2, 2.2, 9.0, "8fc98a", 0.25)
+	_paint(crown.get_child(1), true)
+	bloom("b_pine", pc + Vector3(0, 9.0, 0))
+	item("yarn3", pc + Vector3(4, 0, 3), "ffd86b")
+	for k in 9:  # the pine woods around it
+		var a := k / 9.0 * TAU
+		_snow_pine(pc + Vector3(cos(a) * rng.randf_range(5, 7), 0, sin(a) * rng.randf_range(4, 6)))
+
+	# --- the Sled Trail (north-east): Boing up the tower, slide down icy ramps, jump the gaps
+	var steps := [[29, -26, 1.6], [26.5, -27, 3.2], [29, -28.2, 4.8], [26, -28.2, 6.0]]
+	for s in steps:
+		var b := island(s[0], s[1], 2.2, 2.2, s[2], "e6eef8", s[2])
+		_paint(b.get_child(1), true)
+	for r in [[20.5, 5.4, 3.4], [13.5, 3.6, 1.8], [7, 1.8, 0.4]]:  # x centre, high end, low end (ramps go west)
+		var ramp := island(r[0], -28, 5.6, 2.6, 0.0, "cfe9f7", 0.3)
+		ramp.rotation.z = atan2(r[1] - r[2], 5.6)
+		ramp.position.y = (r[1] + r[2]) / 2.0 - 0.15
+		_paint(ramp.get_child(1), true)
+	var end := island(2.5, -28, 3.0, 3.0, 0.4, "e6eef8", 0.6)
+	_paint(end.get_child(1), true)
+	bloom("b_trail", Vector3(2.5, 0.4, -28))
+	_signpost(Vector3(29, 0, -21.5), "Sled Trail")
+	checkpoint(Vector3(28, 0, -21))
+
+	# --- Snowball Smudgies (south-west) and a hollow log (south-east)
+	var nc := Vector3(-16, 0, 15)
+	var slush := colored(_cyl(4.0, 4.0, 0.04, 24), "4a4552", nc + Vector3(0, 0.02, 0), 0.0, 0.0)
+	slush.scale = Vector3(1.0, 1.0, 0.7)
+	add_child(slush)
+	for i in 4:
+		var a := i / 4.0 * TAU
+		smudgie("n%d" % i, nc + Vector3(cos(a) * 1.8, 0, sin(a) * 1.2), 2.4)
+		nest.append("n%d" % i)
+	bloom("b_nest", nc, true)
+	var log_c := Vector3(26, 0, 24)
+	for side in [-1.0, 1.0]:
+		var half := doodle(_box(4.0, 0.25, 1.4), "a8755a", log_c + Vector3(0, 0.7 + side * 0.6, 0), 0.03, true)
+		add_child(half)
+	var log_body := StaticBody3D.new()
+	for side in [-1.0, 1.0]:
+		var cs := CollisionShape3D.new()
+		cs.shape = _box_shape(Vector3(4.0, 0.25, 1.4))
+		cs.position = Vector3(0, 0.7 + side * 0.6, 0)
+		log_body.add_child(cs)
+	log_body.position = log_c
+	add_child(log_body)
+	bloom("b_peek", log_c + Vector3(0.6, 0.0, 0))
+
+	# --- the Night Sky: hidden constellation platforms that light up once night falls
+	var sky_pts := [[4, 2.0, 22], [6.5, 3.0, 19], [8, 4.0, 15.5], [6, 5.0, 12.5], [3, 6.0, 11], [0, 7.0, 9.5], [-3, 8.0, 8]]
+	for i in sky_pts.size():
+		var p: Array = sky_pts[i]
+		var plat := island(p[0], p[2], 1.5, 1.5, p[1], "ffe07a", 0.2)
+		_paint(plat.get_child(1), true)
+		plat.add_child(colored(_star_mesh(0.7, 0.32, 0.05), "fff6c8", Vector3(0, 0.12, 0), 0.0, 0.5))
+		plat.get_child(-1).rotation.x = -PI / 2.0
+		sky_path.append(plat)
+		plat.visible = false
+		plat.process_mode = Node.PROCESS_MODE_DISABLED
+		plat.get_child(0).disabled = true
+	bloom("b_sky", Vector3(-3, 8.0, 8), true)
+
+	# --- drops, stickers and dressing
+	var drop_spots := [
+		[-4, 0, 22, "ff9ab5"], [6, 0, 25, "ffd86b"], [-12, 0, 8, "8fd0f5"], [14.5, 0.05, 5.5, "b9a2ee"],
+		[22.5, 0.05, 9.5, "a8d8a0"], [-19.5, 3.2, 0, "ffb38a"], [0, 0, -9, "f5c35b"], [-14, 0, -12, "e88f8f"],
+		[-20, 0, -14, "8fd0f5"], [26, 6.0, -28.2, "ff9ab5"], [13.5, 2.6, -28, "9fd0b4"], [20, 0, 20, "ffd86b"],
+	]
+	for i in drop_spots.size():
+		var dd: Array = drop_spots[i]
+		paint_drop("d%d" % (i + 1), Vector3(dd[0], dd[1], dd[2]), dd[3])
+	bloom("b_drops", Vector3(0, 0, 14.5), true)
+	sticker("s3", Vector3(30.5, 0, -10))
+	sticker("s4", Vector3(-30, 0, 27))
+	sticker("s5", ic + Vector3(0, 0, -2.8))  # inside the castle courtyard, behind the star
+	_keep = [
+		[0, 17, 2], [-3.5, 13, 1.5], [3.5, 13, 1.5], [-6, 20, 2.5], [10, 20, 2.5], [-23, 0, 7], [0, -16, 6.5],
+		[-14, -18, 4.5], [-24, -20, 8], [27, -27, 4], [12, -28, 10], [-16, 15, 5], [26, 24, 3],
+	]
+	for p in sky_pts:
+		_keep.append([p[0], p[2], 1.5])
+	_stone_path([Vector3(0, 0, 23), Vector3(0, 0, 18.5)])
+	_stone_path([Vector3(0, 0, 15), Vector3(0, 0, -10)])                                       # to the castle
+	_stone_path([Vector3(-2, 0, 14), Vector3(-12, 0, 6), Vector3(-16, 0, 2)])                    # to the cliffs
+	_stone_path([Vector3(0, 0, -3), Vector3(-10, 0, -10), Vector3(-14, 0, -14)])                # to the cave
+	_stone_path([Vector3(2, 0, 14), Vector3(8, 0, 13)])                                         # to the lake
+	_stone_path([Vector3(2, 0, -6), Vector3(14, 0, -12), Vector3(27, 0, -21)])                   # to the sled trail
+	_signpost(Vector3(-11, 0, 9), "Boing Cliffs")
+	_signpost(Vector3(8, 0, 11.5), "Frozen Lake")
+	_signpost(Vector3(-8, 0, -7.5), "Icicle Cave  ·  Giant Pine")
+	_sprinkle(func(p): _snow_pine(p), 22, 2.0)
+	_sprinkle(func(p): _snowman(p), 4, 1.6)
+	_sprinkle(func(p): place(rock(), p, rng.randf_range(0.7, 1.3), 0.8, INF, _cyl_shape(0.4, 0.5), Vector3(0, 0.25, 0)), 6, 1.2)
+	for x in range(-30, 31, 3):
+		if rng.randf() < 0.7:
+			_snow_pine(Vector3(x + rng.randf_range(-0.5, 0.5), 0, 29.0))
+
+
+## A block of ice. `meltable` ones vanish when Toasty Mochi comes close; `icicles` draws a curtain of icicles.
+func _ice_block(pos: Vector3, size: Vector3, meltable: bool, icicles := false) -> void:
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	cs.shape = _box_shape(size)
+	body.add_child(cs)
+	if icicles:
+		var n := int(size.x / 0.45)
+		for k in n:
+			var h := size.y * rng.randf_range(0.75, 1.0)
+			var ice := colored(_cyl(0.18, 0.0, h, 5), "cfe9f7", Vector3(-size.x / 2.0 + (k + 0.5) * size.x / n, size.y / 2.0 - h / 2.0, 0), 0.02, 0.45)
+			body.add_child(ice)
+	else:
+		body.add_child(colored(_box(size.x, size.y, size.z), "cfe9f7" if meltable else "b9dcf2", Vector3.ZERO, 0.03, 0.45))
+	body.position = pos + Vector3(0, size.y / 2.0, 0)
+	add_child(body)
+	if meltable:
+		meltables.append(body)
+
+
+## Toasty Mochi near meltable ice: it sags and melts away. Returns true if something started melting.
+func melt_near(pos: Vector3) -> bool:
+	var any := false
+	for i in range(meltables.size() - 1, -1, -1):
+		var b: StaticBody3D = meltables[i]
+		var shape: BoxShape3D = b.get_child(0).shape
+		var local := b.to_local(pos)
+		var outside := (local.abs() - shape.size / 2.0).max(Vector3.ZERO)
+		if outside.length() < 0.9:
+			meltables.remove_at(i)
+			b.get_child(0).set_deferred("disabled", true)
+			var tw := b.create_tween()
+			tw.tween_property(b, "scale", Vector3(1.05, 0.02, 1.05), 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw.tween_callback(b.queue_free)
+			_splash(b.global_position, Color("cfe9f7"))
+			any = true
+	return any
+
+
+## Night falls (or is undone on a new page): the constellation path lights up and stars come out in the sky.
+func set_night(on: bool) -> void:
+	if night == on:
+		return
+	night = on
+	for i in sky_path.size():
+		var plat: Node3D = sky_path[i]
+		plat.visible = on
+		plat.process_mode = Node.PROCESS_MODE_INHERIT
+		plat.get_child(0).set_deferred("disabled", not on)
+		if on:
+			plat.scale = Vector3.ONE * 0.01
+			plat.create_tween().tween_property(plat, "scale", Vector3.ONE, 0.5).set_delay(0.6 + i * 0.25) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if on:
+		reveal_bloom("b_sky")
+		for k in 60:  # stars in the night sky
+			var st := colored(_star_mesh(rng.randf_range(0.15, 0.35), 0.06, 0.02), "fff6c8",
+				Vector3(rng.randf_range(-45, 45), rng.randf_range(14, 30), rng.randf_range(-50, 20)), 0.0, 0.6)
+			st.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, 0)
+			add_child(st)
+
+
+func _snow_pine(pos: Vector3) -> void:
+	var g := Node3D.new()
+	g.add_child(doodle(_cyl(0.1, 0.14, 0.6, 8), "c99a6a", Vector3(0, 0.3, 0), 0.02))
+	for k in 3:
+		g.add_child(doodle(_cyl(0.0, 0.9 - k * 0.2, 0.9, 9), "6fae8c", Vector3(0, 0.9 + k * 0.55, 0), 0.03))
+	g.add_child(doodle(_cyl(0.0, 0.32, 0.35, 9), "ffffff", Vector3(0, 2.35, 0), 0.02))
+	place(g, pos, rng.randf_range(0.9, 1.4), 1.4, INF, _cyl_shape(0.45, 2.4), Vector3(0, 1.2, 0))
+
+
+func _snowman(pos: Vector3) -> void:
+	var g := Node3D.new()
+	for b in [[0.55, 0.5], [0.4, 1.25], [0.28, 1.8]]:
+		g.add_child(doodle(_sphere(b[0], 12, 8), "ffffff", Vector3(0, b[1], 0), 0.03))
+	g.add_child(doodle(_cyl(0.0, 0.07, 0.3, 6), "ff9b4a", Vector3(0, 1.8, 0.3), 0.01))
+	g.get_child(-1).rotation.x = PI / 2.0
+	g.add_child(doodle(_cyl(0.3, 0.3, 0.1, 10), "e5485e", Vector3(0, 1.55, 0), 0.015))  # a scarf
+	place(g, pos, 1.0, 1.2, INF, _cyl_shape(0.5, 2.0), Vector3(0, 1.0, 0))
 
 
 # ================================================================== pages made in the level editor (editor/)

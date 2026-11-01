@@ -7,9 +7,10 @@ extends Node
 const DIR := "res://assets/audio/"
 const SOUNDS := ["step", "hop", "jump", "land", "squish", "collect", "win", "click", "slurp", "gulp", "munch",
 	"step_grass", "step_stone", "step_wood", "step_sand", "step_water", "splash", "bubble", "scribble", "tide",
+	"step_snow", "step_ice", "melt", "boing", "night",
 	"emote_happy", "emote_love", "emote_angry", "emote_sad", "emote_surprised", "emote_sleepy"]
 const MUSIC_DB := -9.0    # music sits under the effects
-const TRACKS := ["music_paper_stroll", "music_village_square", "music_seaside_breeze"]
+const TRACKS := ["music_paper_stroll", "music_village_square", "music_seaside_breeze", "music_snowy_notebook"]
 const VOICES := 10
 
 var streams := {}

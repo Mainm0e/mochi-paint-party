@@ -374,3 +374,60 @@ music()
 chapter_sfx()
 music_village()
 music_seaside()
+
+
+def snowy_sfx():
+    # snow crunch: a short gritty squeak
+    n = int(0.14 * SR)
+    t = t_(0.14)
+    crunch = lowpass(rng.standard_normal(n), 3800) * (0.6 + 0.4 * np.sin(2 * np.pi * 45 * t)) * env(n, 0.006, 0.04)
+    save("step_snow", crunch, 0.38)
+    n = int(0.09 * SR)
+    save("step_ice", np.sin(2 * np.pi * 1700 * t_(0.09)) * env(n, 0.0005, 0.012) + 0.3 * lowpass(rng.standard_normal(n), 7000) * env(n, 0.0005, 0.005), 0.3)
+    # ice melting: a soft sizzle that drips away
+    n = int(0.9 * SR)
+    t = t_(0.9)
+    sizzle = lowpass(rng.standard_normal(n), 6000) * np.exp(-t * 3.5) * (0.5 + 0.5 * np.abs(np.sin(2 * np.pi * 21 * t)))
+    drips = mix(*[(np.sin(glide(f, f * 1.8, int(0.12 * SR), 0.4)) * env(int(0.12 * SR), 0.001, 0.03), o, 0.5)
+                  for f, o in ((700, 0.35), (900, 0.55), (650, 0.72))])
+    save("melt", mix((sizzle, 0, 1.0), (drips, 0, 1.0)), 0.5)
+    # boing: a big springy launch
+    n = int(0.5 * SR)
+    ph = glide(180, 900, n, 0.5) + 0.4 * np.sin(2 * np.pi * 16 * t_(0.5)) * np.exp(-t_(0.5) * 5)
+    save("boing", (np.sin(ph) + 0.2 * np.sin(2 * ph)) * env(n, 0.003, 0.22), 0.6)
+    # nightfall: soft descending chimes
+    save("night", mix(*[(bell(note_hz(m), 2.4, 0.2, 1.0), i * 0.28, 1.0) for i, m in enumerate((88, 84, 81, 76, 72))]), 0.55)
+
+
+def music_snowy():
+    """'Snowy Notebook': a slow music-box waltz in D minor-ish with soft sleigh bells."""
+    chords = [[38, 57, 62, 65], [34, 58, 62, 65], [36, 55, 60, 64], [33, 57, 61, 64]] * 3  # 12 bars = the melody
+
+    def draw(put, beat):
+        for b, ch in enumerate(chords):
+            start = b * 3 * beat
+            put(pluck(note_hz(ch[0]), 2.4, 0.25, 0.9), start, 0.3)
+            dur = 3 * beat + 0.8
+            tt = t_(dur)
+            pad = sum(np.sin(2 * np.pi * note_hz(m) * tt + k) for k, m in enumerate(ch[1:]))
+            pad *= np.clip(tt / 0.6, 0, 1) * np.clip((dur - tt) / 0.8, 0, 1)
+            put(lowpass(pad, 900), start, 0.05)
+        melody = [(74, 1), (77, 1), (81, 1), (79, 2), (77, 1), (76, 3),
+                  (74, 1), (76, 1), (77, 1), (79, 2), (76, 1), (73, 3),
+                  (81, 1), (79, 1), (77, 1), (76, 2), (74, 1), (72, 3),
+                  (74, 1), (77, 1), (76, 1), (73, 2), (76, 1), (74, 3)]
+        t = 0.0
+        for m, d in melody:
+            put(bell(note_hz(m), d * beat + 1.0, 0.35, 0.7), t * beat, 0.17)
+            t += d
+        for k in range(len(chords) * 3):  # sleigh bells, very soft, on beats 2 and 3
+            if k % 3:
+                bn = int(0.12 * SR)
+                jingle = sum(np.sin(2 * np.pi * f * t_(0.12)) for f in (5200, 6300, 7400)) * env(bn, 0.001, 0.03)
+                put(jingle, k * beat, 0.012)
+
+    loop_track("music_snowy_notebook", len(chords), 3, 96, draw)
+
+
+snowy_sfx()
+music_snowy()

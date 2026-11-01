@@ -11,8 +11,8 @@ const SAVE_PATH := "user://mochi_sketchbook.json"
 const CROPS := {"eyes": Rect2i(272, 527, 480, 240), "mouths": Rect2i(432, 721, 160, 80),
 	"cheeks": Rect2i(200, 570, 624, 312), "marks": Rect2i(112, 440, 800, 400)}
 const FALL_Y := -6.0            # below this the mochi is redrawn at the last checkpoint
-const MUSIC := {"village": "music_village_square", "seaside": "music_seaside_breeze"}  # pages with their own theme
-const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6", "sketch": "ffe07a", "bubble": "bfe6ff"}
+const MUSIC := {"village": "music_village_square", "seaside": "music_seaside_breeze", "snowy": "music_snowy_notebook"}  # pages with their own theme
+const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6", "sketch": "ffe07a", "bubble": "bfe6ff", "toasty": "ff9b4a", "boing": "c9f0b0"}
 
 enum Mode { MENU, CREATE, PLAY, PAUSED }
 
@@ -205,7 +205,7 @@ func _build_scene() -> void:
 	mochi.stepped.connect(func():
 		audio.play("hop", -10.0 if mochi.exhausted else -8.0, 0.08, 0.85 if mochi.exhausted else 1.0)
 		audio.play("step_" + world.surface_at(mochi.global_position), -6.0, 0.12))  # grass, cobbles, wood, sand...
-	mochi.jumped.connect(func(): audio.play("jump", -3.0, 0.06, 0.8 if mochi.power == "stone" else 1.0))
+	mochi.jumped.connect(func(): audio.play("boing" if mochi.power == "boing" else "jump", -3.0, 0.06, 0.8 if mochi.power == "stone" else 1.0))
 	mochi.landed.connect(func(): audio.play("land", -4.0, 0.06, 0.7 if mochi.power == "stone" else 1.0))
 	mochi.squished.connect(func(): audio.play("squish", -1.0))
 	mochi.emoted.connect(func(n: String): audio.play("emote_" + n.to_lower(), -1.0, 0.03))
@@ -309,6 +309,7 @@ func enter_level(name: String) -> void:
 	_inhaling = {}
 	if name == "home":
 		world.set_sticker_count(save.stickers.size(), world.PAGES.size() * 5)
+	_nightfall(world.level == "snowy" and _stars("snowy") >= 3, true)
 	if hud:
 		_refresh_hud()
 	if on_map and world.map_new != "":
@@ -840,6 +841,8 @@ func _on_ate(kind: String, e: Dictionary) -> void:
 			audio.play("win", 0.0, 0.0)
 			_refresh_hud()
 			_celebrate()
+			if world.level == "snowy" and _stars("snowy") >= 3 and not world.night:
+				_nightfall()
 			var n := _stars(world.level)
 			_toast("Bloom Star!  %d / %d" % [n, world.page_stars(world.level)])
 			if n == World.STARS_TO_OPEN:
@@ -1071,6 +1074,9 @@ func _process(delta: float) -> void:
 			var speed := lerpf(0.6, 3.5, save.look_speed)
 			yaw -= look.x * speed * delta
 			pitch = clampf(pitch + look.y * speed * 0.7 * delta, -0.15, 1.25)
+	mochi.slippery = world.surface_at(mochi.global_position) == "ice"
+	if playing and mochi.power == "toasty" and world.melt_near(mochi.global_position):
+		audio.play("melt", -2.0, 0.05)
 	if mode != Mode.PAUSED:
 		mochi.step(delta, input, yaw, playing and Input.is_action_pressed("sprint"),
 			playing and Input.is_action_pressed("jump"))
@@ -1168,6 +1174,29 @@ func _draw_page_map() -> void:
 	map_view.draw_arc(me, 7.0, 0, TAU, 18, INK, 2.0)
 	var look := Vector2(sin(mochi.rotation.y), cos(mochi.rotation.y)) * 12.0
 	map_view.draw_line(me, me + look, INK, 2.0)
+
+
+## Night falls on the Snowy Notebook (or day comes back on other pages): the picture dims to a blue night
+## and the constellation path lights up.
+func _nightfall(on := true, instant := false) -> void:
+	world.set_night(on)
+	environment.adjustment_enabled = true
+	var bright := 0.55 if on else 1.0
+	var sat := 0.8 if on else 1.0
+	var bg := Color("2c3150") if on else PAPER
+	if instant:
+		environment.adjustment_brightness = bright
+		environment.adjustment_saturation = sat
+		environment.background_color = bg
+		environment.fog_light_color = bg
+		return
+	audio.play("night", -2.0, 0.0)
+	think("Night is falling... look, stars to climb!", 3.0)
+	var tw := create_tween().set_parallel()
+	tw.tween_property(environment, "adjustment_brightness", bright, 2.5)
+	tw.tween_property(environment, "adjustment_saturation", sat, 2.5)
+	tw.tween_property(environment, "background_color", bg, 2.5)
+	tw.tween_property(environment, "fog_light_color", bg, 2.5)
 
 
 ## Seaside's tide turned: a bell, a toast, and the mochi says what it means.

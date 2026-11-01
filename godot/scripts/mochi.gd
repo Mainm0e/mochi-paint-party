@@ -27,6 +27,8 @@ const POWERS := {
 	"stone": {"name": "Stone Mochi", "color": "b5b8c6", "hint": "So heavy! Press Space in the air to stomp."},
 	"sketch": {"name": "Sketch Mochi", "color": "ffe9a0", "hint": "I can draw! Click (or X) to sketch a bridge in front of me."},
 	"bubble": {"name": "Bubble Mochi", "color": "bfe6ff", "hint": "I'm a bubble! I can walk on water, and big falls bounce me back up."},
+	"toasty": {"name": "Toasty Mochi", "color": "ffcf8a", "hint": "Toasty warm! Walk up to ice and I'll melt it."},
+	"boing": {"name": "Boing Mochi", "color": "c9f0b0", "hint": "Boing! My hops go super high now."},
 }
 
 signal stepped
@@ -63,6 +65,7 @@ const JUMP := 3.6
 const JUMP_BUFFER := 0.14       # seconds a too-early jump press is remembered
 const JUMP_CUT := 0.45           # letting go of jump while rising keeps this much of the upward speed
 const WATER_LAYER := 4           # physics layer of the sea surface: only Bubble Mochi stands on it
+const BOING := 1.75              # Boing Mochi's ground hops are this much stronger
 const COYOTE := 0.12            # a jump still counts this long after walking off an edge
 const GLIDE_FALL := -0.7        # Puffy Mochi's slowest fall while holding jump
 const GLIDE_SPEED := 3.3
@@ -110,6 +113,7 @@ var size := 1.0                 # bigger on the World Map: scales the body, its 
 var _buffer := 0.0              # a jump pressed just before landing waits this long to happen
 var _cuttable := false          # this jump gets lower if jump is let go early
 var _ground_h := 99.0           # how far the floor below is (from the shadow ray)
+var slippery := false           # standing on ice: hardly any grip (set by main from the floor's surface)
 
 
 func _ready() -> void:
@@ -235,8 +239,30 @@ func _build_hats() -> void:
 		s.material_override = _toon(Color("dff3ff"), 0.5, 0.005)
 		s.position = Vector3(b[1], b[2], 0.0)
 		bubble.add_child(s)
-	for k in {"puffy": puffy, "stone": stone, "sketch": sketch, "bubble": bubble}:
-		var h: Node3D = {"puffy": puffy, "stone": stone, "sketch": sketch, "bubble": bubble}[k]
+	var toasty := Node3D.new()  # a little flame on top
+	for part in [[0.09, 0.2, "ff9b4a", 0.58], [0.05, 0.12, "ffe07a", 0.56]]:
+		var f := MeshInstance3D.new()
+		var fm := CylinderMesh.new()
+		fm.top_radius = 0.0
+		fm.bottom_radius = part[0]
+		fm.height = part[1]
+		fm.radial_segments = 7
+		f.mesh = fm
+		f.material_override = _toon(Color(part[2]), 0.3, 0.005)
+		f.position = Vector3(0.0, part[3], 0.0)
+		toasty.add_child(f)
+	var boing := Node3D.new()  # a springy coil on top
+	for k in 3:
+		var ring := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.045
+		tm.outer_radius = 0.075
+		ring.mesh = tm
+		ring.material_override = _toon(Color("8fc98a"), 0.2, 0.004)
+		ring.position = Vector3(0.0, 0.5 + k * 0.045, 0.0)
+		boing.add_child(ring)
+	for k in {"puffy": puffy, "stone": stone, "sketch": sketch, "bubble": bubble, "toasty": toasty, "boing": boing}:
+		var h: Node3D = {"puffy": puffy, "stone": stone, "sketch": sketch, "bubble": bubble, "toasty": toasty, "boing": boing}[k]
 		h.visible = false
 		bob.add_child(h)
 		_hats[k] = h
@@ -334,7 +360,7 @@ func jump() -> void:
 		_buffer = JUMP_BUFFER
 		return
 	if jumps == 0 and (is_on_floor() or _air < COYOTE):
-		velocity.y = JUMP * (0.85 if power == "stone" else 1.0) * sqrt(size)
+		velocity.y = JUMP * (0.85 if power == "stone" else (BOING if power == "boing" else 1.0)) * sqrt(size)
 		jumps = 1
 		_air = COYOTE
 		_cuttable = true
@@ -452,7 +478,7 @@ func step(delta: float, input: Vector2, yaw: float, sprint := false, jump_held :
 	var want := (right * input.x - fwd * input.y) * top_speed
 	if pounding:
 		want = Vector3.ZERO
-	var grip := 10.0 if is_on_floor() else 4.0
+	var grip := (1.1 if slippery else 10.0) if is_on_floor() else 4.0
 	var hv := Vector2(velocity.x, velocity.z).lerp(Vector2(want.x, want.z), 1.0 - exp(-delta * grip))
 	velocity.x = hv.x
 	velocity.z = hv.y
