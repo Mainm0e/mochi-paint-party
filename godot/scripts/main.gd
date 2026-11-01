@@ -26,7 +26,7 @@ var cam_dist := 4.2
 var follow := Vector3.ZERO      # smoothed point the play camera orbits
 var shake := 0.0
 var time := 0.0
-var save := {"look": null, "pages": {}, "stickers": [], "music": 0.8, "sfx": 1.0, "look_speed": 0.5}
+var save := {"look": null, "pages": {}, "stickers": [], "music": 0.8, "sfx": 1.0, "look_speed": 0.5, "map_at": "1-1"}
 var has_mochi := false
 var environment: Environment
 var cinematic := false          # a script is framing the camera (concept renders)
@@ -68,6 +68,7 @@ var win_text: Label
 var tab := "Flavor"
 var _img_cache := {}
 var _told := {}                 # one-time tips already shown
+var _just_done := ""            # a page finished this visit: the map celebrates it on the way back
 
 
 func _ready() -> void:
@@ -204,6 +205,7 @@ func _load_save() -> void:
 	save.music = clampf(float(data.get("music", 0.8)), 0.0, 1.0)
 	save.sfx = clampf(float(data.get("sfx", 1.0)), 0.0, 1.0)
 	save.look_speed = clampf(float(data.get("look_speed", 0.5)), 0.0, 1.0)
+	save.map_at = String(data.get("map_at", "1-1"))
 
 
 func _store() -> void:
@@ -221,26 +223,48 @@ func _page_save(page: String) -> Dictionary:
 # ================================================================== levels
 ## Load the Home Page or a book page and drop the mochi in at its start.
 func enter_level(name: String) -> void:
-	var eaten: Array = _page_save(name).eaten if name != "home" else []
+	var on_map := name == "worldmap"
+	var eaten: Array = _page_save(name).eaten if not name in ["home", "worldmap"] else []
+	if on_map:  # the map shows what is painted, where the mochi last was, and what was just finished
+		world.map_done = World.STAMPS.filter(func(s): return s[5] != "" and _page_save(s[5]).done).map(func(s): return s[0])
+		world.map_at = save.map_at
+		world.map_new = world.stamp_for_level(_just_done)
+		_just_done = ""
 	world.load_level(name, eaten)
+	# on the map the mochi walks the whole book, so it is drawn bigger and the camera pulls back
+	mochi.size = 1.7 if on_map else 1.0
+	mochi.scale = Vector3.ONE * mochi.size
+	cam_dist = 10.0 if on_map else 4.2
+	environment.fog_depth_begin = 40.0 if on_map else 16.0
+	environment.fog_depth_end = 90.0 if on_map else 38.0
 	mochi.redraw_at(world.spawn_point())
 	mochi.rotation.y = PI  # face into the page (away from the camera)
 	yaw = 0.0
-	pitch = 0.45
+	pitch = 0.7 if on_map else 0.45
 	follow = mochi.global_position
 	_inhaling = {}
 	if name == "home":
 		world.set_sticker_count(save.stickers.size(), world.PAGES.size() * 5)
 	if hud:
 		_refresh_hud()
-	if name != "home" and not _told.has("drops"):
+	if on_map and world.map_new != "":
+		await get_tree().create_timer(1.3).timeout
+		_toast("A new path!")
+		think("Look, the page got its colour back!", 3.0)
+		return
+	if on_map and not _told.has("map"):
+		_told["map"] = true
+		await get_tree().create_timer(1.0).timeout
+		think("The whole sketchbook! Hop onto a stamp and press E.", 3.5)
+		return
+	if not name in ["home", "worldmap"] and not _told.has("drops"):
 		_told["drops"] = true
 		await get_tree().create_timer(1.0).timeout
 		think("Paint drops! Walk up close and I'll gobble them up.", 3.5)
 
 
 func _refresh_hud() -> void:
-	var page := world.level != "home"
+	var page := not world.level in ["home", "worldmap"]
 	page_label.text = world.page_name()
 	drops_row.visible = page
 	_render_drops()
@@ -568,27 +592,27 @@ func _build_ui() -> void:
 	# --- pause + page complete
 	var resume := _button("Keep walking", true)
 	var edit := _button("Change my mochi")
-	home_btn = _button("Back to the Home Page")
+	home_btn = _button("Back to the map")
 	var restart := _button("Restart this page")
 	var to_menu := _button("Main menu")
 	resume.pressed.connect(func(): set_mode(Mode.PLAY))
 	edit.pressed.connect(func():
 		_from_mirror = true
 		set_mode(Mode.CREATE))
-	home_btn.pressed.connect(func(): enter_level("home"); set_mode(Mode.PLAY))
+	home_btn.pressed.connect(func(): enter_level("worldmap"); set_mode(Mode.PLAY))
 	restart.pressed.connect(_restart_page)
 	to_menu.pressed.connect(func(): set_mode(Mode.MENU))
 	pause_panel = _overlay("Paused", "", [resume, edit, home_btn, restart, to_menu, _volume_row("Music", "music"),
 		_volume_row("Sounds", "sfx"), _volume_row("Look", "look_speed")])
 	ui.add_child(pause_panel)
-	var keep := _button("Keep exploring", true)
-	var win_home := _button("Back to the Home Page")
+	var keep := _button("Keep exploring")
+	var win_home := _button("Back to the map", true)
 	keep.pressed.connect(func(): win_panel.visible = false; set_mode(Mode.PLAY))
 	win_home.pressed.connect(func():
 		win_panel.visible = false
-		enter_level("home")
+		enter_level("worldmap")
 		set_mode(Mode.PLAY))
-	win_panel = _overlay("Page painted!", "", [keep, win_home])
+	win_panel = _overlay("Page painted!", "", [win_home, keep])
 	win_text = win_panel.find_child("Text", true, false)
 	win_panel.visible = false
 	ui.add_child(win_panel)
@@ -650,7 +674,7 @@ func set_mode(m: Mode) -> void:
 
 
 func _restart_page() -> void:
-	if world.level == "home":
+	if world.level in ["home", "worldmap"]:
 		set_mode(Mode.PLAY)
 		return
 	var ps := _page_save(world.level)
@@ -724,6 +748,7 @@ func _on_ate(kind: String, e: Dictionary) -> void:
 			think(["Bleh, inky!", "Smudge cleaned up!", "Tastes like a pen..."].pick_random(), 1.6)
 		"seal":
 			ps.done = true
+			_just_done = world.level
 			audio.play("win", 0.0, 0.0)
 	_store()
 	await get_tree().create_timer(Mochi.MUNCH_TIME).timeout  # let it finish chewing first
@@ -895,9 +920,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				mochi.emote(Mochi.EMOTES[i])
 		if event is InputEventMouseButton and event.pressed:
 			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-				cam_dist = clampf(cam_dist - 0.3, 2.0, 7.0)
+				cam_dist = clampf(cam_dist - 0.3, 2.0, 7.0 * mochi.size)
 			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				cam_dist = clampf(cam_dist + 0.3, 2.0, 7.0)
+				cam_dist = clampf(cam_dist + 0.3, 2.0, 7.0 * mochi.size)
 	elif mode == Mode.CREATE and event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_LEFT:
 		yaw -= event.relative.x * 0.008  # spin the mochi around while dressing it up
 
@@ -906,7 +931,22 @@ func _use_zone(z: Dictionary) -> void:
 	match z.id:
 		"book":
 			audio.play("collect", -4.0, 0.0, 0.8)
-			enter_level("meadow1")
+			enter_level("worldmap")
+			_toast(world.page_name())
+		"stamp":
+			if z.level == "":
+				think("This page is still being drawn!", 2.2)
+				return
+			save.map_at = z.stamp
+			_store()
+			audio.play("collect", -4.0, 0.0, 0.8)
+			enter_level(z.level)
+			_toast(world.page_name())
+		"home":
+			save.map_at = "home"
+			_store()
+			audio.play("collect", -4.0, 0.0, 0.8)
+			enter_level("home")
 			_toast(world.page_name())
 		"mirror":
 			_from_mirror = true
@@ -1016,7 +1056,7 @@ func _update_camera(delta: float) -> void:
 			follow.x = lerpf(follow.x, p.x, 1.0 - exp(-delta * 10.0))
 			follow.z = lerpf(follow.z, p.z, 1.0 - exp(-delta * 10.0))
 			follow.y = lerpf(follow.y, p.y, 1.0 - exp(-delta * (6.0 if mochi.is_on_floor() else 2.5)))
-			target = follow + Vector3(0, 0.35, 0)
+			target = follow + Vector3(0, 0.35 * mochi.size, 0)
 			var orbit := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * cam_dist
 			eye = target + orbit
 	var k := 1.0 - exp(-delta * (25.0 if mode == Mode.PLAY else 3.0))
@@ -1038,6 +1078,7 @@ func _worldmap_shots(dir: String) -> void:
 	ui.visible = false
 	environment.fog_depth_begin = 70.0
 	environment.fog_depth_end = 140.0
+	world.map_done = World.STAMPS.map(func(s): return s[0])  # the concept shows the whole book painted
 	world.load_level("worldmap")
 	mochi.global_position = Vector3(-18, 0.8, 10.5)  # waiting on stamp 1-1
 	mochi.scale = Vector3.ONE * 2.2
@@ -1089,7 +1130,15 @@ func _autotest(dir: String) -> void:
 	print("AUTOTEST home zone: '%s'" % _zone.get("prompt", ""))
 	_use_zone(_zone)
 	await wait.call(2.0)
-	await shot.call("3_meadow_start")
+	print("AUTOTEST on the map: %s, painted stamps %s, zones %d" % [world.level, world.map_done, world.zones.size()])
+	await shot.call("3_map")
+	# walk to stamp 1-1 and enter Meadow 1
+	place.call(Vector3(-18, 0.4, 10.6))
+	await wait.call(0.4)
+	print("AUTOTEST stamp zone: '%s'" % _zone.get("prompt", ""))
+	_use_zone(_zone)
+	await wait.call(2.0)
+	await shot.call("3b_meadow_start")
 	# eat the cloud -> Puffy Mochi
 	place.call(Vector3(2.6, 0.1, -18.2), PI)
 	for i in 360:
@@ -1150,5 +1199,25 @@ func _autotest(dir: String) -> void:
 	await wait.call(0.5)
 	print("AUTOTEST page complete panel: %s / text: %s" % [win_panel.visible, win_text.text.replace("\n", " | ")])
 	await shot.call("8_painted")
+	# back to the map: Meadow paints in and the path to 1-2 draws itself
+	win_panel.visible = false
+	enter_level("worldmap")
+	set_mode(Mode.PLAY)
+	await wait.call(1.0)
+	print("AUTOTEST map after page: painted %s, new %s, at %s" % [world.map_done, world.map_new, mochi.global_position])
+	await wait.call(2.5)
+	await shot.call("9_map_painted")
+	place.call(Vector3(-12.5, 0.4, 12.1))
+	await wait.call(0.4)
+	print("AUTOTEST stamp 1-2 zone: '%s'" % _zone.get("prompt", ""))
+	_use_zone(_zone)
+	await wait.call(0.6)
+	print("AUTOTEST still being drawn thought: '%s' (still on %s)" % [cloud_label.text, world.level])
+	await shot.call("10_map_next")
+	place.call(Vector3(0, 0.4, 11.1))
+	await wait.call(0.4)
+	_use_zone(_zone)
+	await wait.call(1.0)
+	print("AUTOTEST home stamp -> %s" % world.level)
 	print("AUTOTEST DONE")
 	get_tree().quit()

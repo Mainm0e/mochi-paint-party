@@ -100,6 +100,7 @@ var _step_count := 0
 var _tex_cache := {}
 var _hats := {}
 var _redraw := 1.0              # 0 -> 1 while being drawn back in at a checkpoint
+var size := 1.0                 # bigger on the World Map: scales the body, its stride and its hop
 
 
 func _ready() -> void:
@@ -296,7 +297,7 @@ func _on_anim_finished(anim_name: StringName) -> void:
 ## On the ground: hop. In the air: Stone Mochi stomps; anyone else double jumps (costs stamina).
 func jump() -> void:
 	if jumps == 0 and (is_on_floor() or _air < COYOTE):
-		velocity.y = JUMP * (0.85 if power == "stone" else 1.0)
+		velocity.y = JUMP * (0.85 if power == "stone" else 1.0) * sqrt(size)
 		jumps = 1
 		_air = COYOTE
 		jumped.emit()
@@ -305,7 +306,7 @@ func jump() -> void:
 		_pound_t = 0.0
 		_spin = 0.0
 	elif jumps == 1 and power != "stone" and stamina >= DOUBLE_JUMP_COST:
-		velocity.y = JUMP * 0.95  # reset the fall so the second hop always feels high
+		velocity.y = JUMP * 0.95 * sqrt(size)  # reset the fall so the second hop always feels high
 		jumps = 2
 		_spend(DOUBLE_JUMP_COST)
 		_spin = 0.0
@@ -406,7 +407,7 @@ func step(delta: float, input: Vector2, yaw: float, sprint := false, jump_held :
 	var right := Vector3(cos(yaw), 0, -sin(yaw))
 	var pace := SPRINT if sprinting else (TIRED_SPEED if exhausted else 1.0)
 	gliding = power == "puffy" and jump_held and not is_on_floor() and velocity.y < 0.0
-	var top_speed := GLIDE_SPEED if gliding else SPEED * pace
+	var top_speed := (GLIDE_SPEED if gliding else SPEED * pace) * size
 	var want := (right * input.x - fwd * input.y) * top_speed
 	if pounding:
 		want = Vector3.ZERO
@@ -452,7 +453,7 @@ func step(delta: float, input: Vector2, yaw: float, sprint := false, jump_held :
 ## Squash, stretch, lean and bounce on the visual `bob` node (the body collider never changes).
 func _animate(delta: float, speed: float, on_floor: bool) -> void:
 	# bouncy hop-walk: unhurried 'boing, boing, boing'. Sprinting makes each bounce longer and higher.
-	var walk := minf(1.0, speed / SPEED) if on_floor else 0.0
+	var walk := minf(1.0, speed / (SPEED * size)) if on_floor else 0.0
 	var cadence := 7.6 if sprinting else (5.6 if exhausted else 6.6)
 	phase += delta * cadence * walk
 	if on_floor and walk > 0.3 and int(phase / PI) != _step_count:  # one boing per bounce

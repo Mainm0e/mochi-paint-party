@@ -43,12 +43,16 @@ The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sket
 ## How the game is put together
 
 - Everything is built in code (`scenes/main.tscn` is just `Main` + `main.gd`). No hand-made scenes.
-- `main.gd`: flow (menu -> creator -> Home Page -> pages), input map (registered in code), third-person camera
+- `main.gd`: flow (menu -> creator -> Home Page -> World Map -> pages), input map (registered in code), third-person camera
   (captured mouse, yaw/pitch), HUD/menus (paper cards, ink borders, `Segoe Print` font), thought clouds
   (`think()`), eating loop (`_eat`), save (`user://mochi_sketchbook.json`), the `_autotest` tour.
-- `world.gd`: `load_level("home" | "meadow1")` builds paper islands (StaticBody3D), doodle props (white +
+- `world.gd`: `load_level("home" | "worldmap" | "meadow1")` builds paper islands (StaticBody3D), doodle props (white +
   ink outline, painted later via instance uniform `albedo`), edibles (drop / power / sticker / smudgie / seal),
   checkpoints, switches + bridges, Smudgie AI, spat stars, painting ripples.
+- World Map (`_build_worldmap`): `STAMPS` lists every level stamp (id, pos, colour, chapter, page; "" = not built).
+  `main.gd` sets `world.map_done` / `map_at` / `map_new` before loading it; a stamp opens when the one before is
+  painted, a chapter region (`_chapter_of`) paints once any of its pages is. The mochi is `size` 1.7 there
+  (scales body, speed, hop) and the camera/fog pull back. Save keeps `map_at` (last stamp used).
 - `mochi.gd`: `CharacterBody3D`; visual squash/stretch on child `bob`; powers (`puffy` glide, `stone` stomp),
   stamina (shown on the face + thought clouds, **no bars**), eating faces (gape/munch), emotes via glTF
   bone-scale animations, shadow raycast.
@@ -65,11 +69,12 @@ The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sket
 
 ## Status (2026-11-01)
 
-Playable slice done: Home Page (book, mirror -> creator, sticker board) and **Meadow 1** (8 drops, 5 stickers,
+Playable slice done: Home Page (book -> World Map, mirror -> creator, sticker board), a walkable **World Map**
+(stamps, paths, regions painting in as pages finish; only 1-1 has a page so far) and **Meadow 1** (8 drops, 5 stickers,
 Puffy glide gap, Stone switch + bridge, Smudgies, checkpoints, Paint Seal). Sprint/stamina, double jump,
 big-mouth inhale + gulp, 6 emotes, music + SFX, gamepad. Verified by the autotest, **not yet hand-playtested**.
 
-Next candidates: hand playtest + tuning; camera collision (clips through props); spit bounce; more pages /
+Next candidates: hand playtest + tuning; camera collision (clips through props); spit bounce; more pages (1-2 ...) /
 chapters; the Eraser; doodle NPC friends; decorating the Home Page with stickers; exporting a Windows build.
 
 ## Working with the user

@@ -66,7 +66,7 @@ func spawn_point() -> Vector3:
 
 
 func page_name() -> String:
-	return PAGES.get(level, "Home Page")
+	return "World Map" if level == "worldmap" else PAGES.get(level, "Home Page")
 
 
 # ================================================================== materials + shapes
@@ -503,7 +503,7 @@ func _build_home() -> void:
 	book.add_child(doodle(_box(3.3, 0.14, 2.3), "c86b6b", Vector3(0, 0.38, 0), 0.03, true))
 	book.add_child(doodle(_box(0.08, 0.6, 0.02), "f2c14e", Vector3(0.1, 0.25, 1.15), 0.01, true))
 	place(book, Vector3(0, 0, -3.2), 1.0, 3.5, 0.0, _box_shape(Vector3(3.3, 0.7, 2.3)), Vector3(0, 0.35, 0))
-	zone("book", Vector3(0, 0, -1.6), 1.4, "E  Open the book: Meadow 1")
+	zone("book", Vector3(0, 0, -1.6), 1.4, "E  Open the book")
 	# a dressing mirror for the creator
 	var mirror := Node3D.new()
 	var frame := doodle(TorusMesh.new(), "f5c35b", Vector3(0, 1.0, 0), 0.02)
@@ -610,31 +610,74 @@ func _build_meadow1() -> void:
 	_tree(Vector3(-1.4, 0.3, -52.0), 0.8)
 
 
-# ================================================================== world map (concept diorama)
-## The whole book as one map: an open sketchbook whose two pages hold the four chapter regions,
-## linked by dotted ink paths between level stamps, the Eraser's castle beyond the top edge and a
-## giant Ink Bloom in the middle. Built for concept renders (`-- --worldmap=<dir>`).
+# ================================================================== the World Map (playable book map)
+## Level stamps in play order: id, x, z, colour, chapter, page it opens ("" = not drawn yet).
+const STAMPS := [
+	["1-1", -18.0, 10.5, "ff9ab5", 1, "meadow1"], ["1-2", -12.5, 12.0, "ff9ab5", 1, ""],
+	["1-3", -7.5, 9.0, "ff9ab5", 1, ""], ["1-E", -9.5, 3.0, "26232b", 1, ""],
+	["2-1", -17.0, -1.5, "f5c35b", 2, ""], ["2-2", -11.5, -6.5, "f5c35b", 2, ""],
+	["2-3", -6.0, -7.0, "f5c35b", 2, ""], ["2-E", -12.5, -11.0, "26232b", 2, ""],
+	["3-1", 5.5, 11.5, "7fb5ec", 3, ""], ["3-2", 10.5, 11.8, "7fb5ec", 3, ""],
+	["3-3", 18.5, 11.0, "7fb5ec", 3, ""], ["3-E", 18.0, 2.5, "26232b", 3, ""],
+	["4-1", 5.5, -6.5, "a585e0", 4, ""], ["4-2", 11.0, -6.8, "a585e0", 4, ""],
+	["4-3", 16.0, -12.0, "a585e0", 4, ""], ["4-E", 6.0, -11.5, "26232b", 4, ""],
+]
+const CHAPTER_CENTERS := {1: Vector3(-11, 0, 7), 2: Vector3(-11, 0, -6), 3: Vector3(11, 0, 7), 4: Vector3(11, 0, -6)}
+const HOME_STAMP := Vector3(0, 0, 11.0)
+
+var map_done: Array = []        # stamp ids whose page is painted
+var map_at := "1-1"             # where the mochi stands on the map
+var map_new := ""               # a stamp finished just now: its region and next path draw in with a flourish
+
+
+func stamp_info(id: String) -> Array:
+	for s in STAMPS:
+		if s[0] == id:
+			return s
+	return []
+
+
+func stamp_for_level(page: String) -> String:
+	for s in STAMPS:
+		if page != "" and s[5] == page:
+			return s[0]
+	return ""
+
+
+## A stamp is open when it is the first, or the one before it is painted.
+func stamp_open(i: int) -> bool:
+	return i == 0 or STAMPS[i - 1][0] in map_done
+
+
+## The whole book as one walkable map: an open sketchbook whose two pages hold the four chapter regions,
+## level stamps joined by dotted ink paths, the Ink Bloom in the middle and the Eraser's castle beyond the
+## top edge. Regions stay ink-only until one of their pages is painted.
 func _build_worldmap() -> void:
 	var top := 0.3
-	# the open book: cover, page stack, two pages, the crease
-	var cover := doodle(_box(46, 0.5, 29), "b8665f", Vector3(0, -0.55, 0), 0.06, true)
-	add_child(cover)
+	var y := top
+	for c in clouds:  # the page clouds would hang over the map; it gets its own, off the book edges
+		c.queue_free()
+	clouds.clear()
+	# the open book: cover, page stack, two walkable pages, the crease
+	add_child(doodle(_box(46, 0.5, 29), "b8665f", Vector3(0, -0.55, 0), 0.06, true))
 	add_child(doodle(_box(44.5, 0.5, 27.4), "f3ead8", Vector3(0, -0.15, 0), 0.04, true))
 	island(-11.1, 0, 21.8, 26.6, top, "fbf5e6", 0.4)
 	island(11.1, 0, 21.8, 26.6, top, "fbf5e6", 0.4)
 	add_child(doodle(_box(0.25, 0.05, 26.6), "d8cdb6", Vector3(0, top + 0.01, 0), 0.0, true))
-	var y := top
+	# --- Chapter 1, Meadow (front left): rolling hills, trees, flowers
 	for h in [[-14.8, 7.2, 2.0], [-20.2, 4.2, 1.5], [-4.6, 12.0, 1.3], [-14.0, 1.6, 1.4], [-3.8, 5.0, 1.5]]:
-		var hill := doodle(_sphere(h[2], 18, 10, true), "a9dd8f", Vector3(h[0], y, h[1]), 0.05)
-		hill.scale = Vector3(1.0, 0.38, 1.0)
-		add_child(hill)
+		var hill := Node3D.new()  # wrapped, so the squashed dome never scales the collider
+		var dome := doodle(_sphere(h[2], 18, 10, true), "a9dd8f", Vector3.ZERO, 0.05)
+		dome.scale = Vector3(1.0, 0.38, 1.0)
+		hill.add_child(dome)
+		place(hill, Vector3(h[0], y, h[1]), 1.0, 0.0, 0.0, _cyl_shape(h[2] * 0.75, h[2] * 0.38), Vector3(0, h[2] * 0.19, 0))
 	for p in [[-20.3, 8.0], [-16.5, 4.0], [-5.0, 2.4], [-10.5, 6.2], [-2.6, 11.8]]:
-		place(tree(), Vector3(p[0], y, p[1]), 1.1, 1.6)
-	_scatter(flower, Vector3(-12, y, 9.5), 3.5, 40, 1.4, 2.0)
+		_tree(Vector3(p[0], y, p[1]), 1.1)
+	_scatter(flower, Vector3(-11.5, y, 7.5), 3.0, 24, 1.3, 1.8)
 	_scatter(mushroom, Vector3(-7, y, 4), 1.3, 5, 1.4, 2.0)
-	# --- Chapter 2, Village (back left): little houses, fences, a windmill
+	# --- Chapter 2, Village (back left): little houses, a windmill
 	for h in [[-16, -4, 0.3], [-13, -2.5, -0.2], [-9.5, -4.5, 0.4], [-15, -8.5, -0.5], [-8, -9, 0.2]]:
-		place(house(), Vector3(h[0], y, h[1]), 1.2, 2.4, h[2])
+		place(house(), Vector3(h[0], y, h[1]), 1.2, 2.4, h[2], _box_shape(Vector3(1.6, 2.0, 1.3)), Vector3(0, 1.0, 0))
 	var mill := Node3D.new()
 	mill.add_child(doodle(_cyl(0.6, 0.9, 3.0, 10), "f7d9b0", Vector3(0, 1.5, 0), 0.04))
 	mill.add_child(doodle(_cyl(0.0, 1.0, 0.9, 10), "e88f8f", Vector3(0, 3.4, 0), 0.04))
@@ -643,7 +686,7 @@ func _build_worldmap() -> void:
 		blade.rotation.z = k * PI / 2.0 + 0.3
 		blade.position += Vector3(cos(k * PI / 2.0 + 0.3 + PI / 2.0), sin(k * PI / 2.0 + 0.3 + PI / 2.0), 0) * 1.1
 		mill.add_child(blade)
-	place(mill, Vector3(-19, y, -9.5), 1.0, 2.2, 0.3)
+	place(mill, Vector3(-19, y, -9.5), 1.0, 2.2, 0.3, _cyl_shape(0.9, 3.0), Vector3(0, 1.5, 0))
 	# --- Chapter 3, Seaside (front right): a painted sea with islets, a lighthouse, bubbles
 	var sea := colored(_cyl(7.5, 7.5, 0.12, 40), "8fd0f5", Vector3(12, y + 0.06, 7.5), 0.04, 0.2)
 	sea.scale = Vector3(1.15, 1.0, 0.75)
@@ -658,23 +701,25 @@ func _build_worldmap() -> void:
 			Vector3(0, 0.37 + k * 0.75, 0), 0.03))
 	light.add_child(doodle(_cyl(0.32, 0.32, 0.5, 12), "ffe07a", Vector3(0, 3.25, 0), 0.03))
 	light.add_child(doodle(_cyl(0.0, 0.45, 0.6, 12), "e5485e", Vector3(0, 3.8, 0), 0.03))
-	place(light, Vector3(15, y + 0.4, 9), 1.0, 1.4, 0.0)
+	place(light, Vector3(15, y + 0.4, 9), 1.0, 1.4, 0.0, _cyl_shape(0.5, 3.0), Vector3(0, 1.5, 0))
 	for b in 14:
 		add_child(colored(_sphere(rng.randf_range(0.18, 0.45)), "dff3ff",
-			Vector3(rng.randf_range(6, 18), y + rng.randf_range(0.6, 3.0), rng.randf_range(3, 12)), 0.02, 0.4))
-	place(tree(), Vector3(8, y + 0.4, 6), 0.8, 1.0)
+			Vector3(rng.randf_range(6, 18), y + rng.randf_range(1.2, 3.0), rng.randf_range(3, 12)), 0.02, 0.4))
+	_tree(Vector3(8, y + 0.4, 6), 0.8)
 	# --- Chapter 4, Snowy Notebook (back right): snowy mounds, pines, ice crystals
-	for h in [[8, -5, 2.6], [15, -3.5, 2.2], [12, -9.5, 3.0], [18, -9, 1.8]]:
-		var mound := doodle(_sphere(h[2], 18, 10, true), "f4f8ff", Vector3(h[0], y, h[1]), 0.05)
-		mound.scale = Vector3(1.0, 0.5, 1.0)
-		add_child(mound)
-	for p in [[6, -2, 1.0], [10, -3, 1.3], [17.5, -5.5, 1.1], [7, -10, 1.2], [15.5, -11, 1.0], [19.5, -2.5, 0.9]]:
+	for h in [[8, -3.5, 2.0], [15, -3.5, 2.0], [12, -9.5, 2.6], [18.5, -9, 1.6]]:
+		var mound := Node3D.new()
+		var dome := doodle(_sphere(h[2], 18, 10, true), "f4f8ff", Vector3.ZERO, 0.05)
+		dome.scale = Vector3(1.0, 0.5, 1.0)
+		mound.add_child(dome)
+		place(mound, Vector3(h[0], y, h[1]), 1.0, 0.0, 0.0, _cyl_shape(h[2] * 0.75, h[2] * 0.5), Vector3(0, h[2] * 0.25, 0))
+	for p in [[6.5, -1.5, 1.0], [10, -1.5, 1.3], [17.5, -5.5, 1.1], [8.5, -10, 1.2], [15.5, -12.2, 1.0], [19.5, -2.5, 0.9]]:
 		var pine := Node3D.new()
 		pine.add_child(doodle(_cyl(0.1, 0.14, 0.6, 8), "c99a6a", Vector3(0, 0.3, 0), 0.02))
 		for k in 3:
 			pine.add_child(doodle(_cyl(0.0, 0.9 - k * 0.2, 0.9, 9), "6fae8c", Vector3(0, 0.9 + k * 0.55, 0), 0.03))
 		pine.add_child(doodle(_cyl(0.0, 0.32, 0.35, 9), "ffffff", Vector3(0, 2.35, 0), 0.02))
-		place(pine, Vector3(p[0], y, p[1]), p[2], 1.4)
+		place(pine, Vector3(p[0], y, p[1]), p[2], 1.4, INF, _cyl_shape(0.45, 2.4), Vector3(0, 1.2, 0))
 	for c in 6:
 		var crystal := colored(_cyl(0.0, 0.35, 1.4, 5), "bfe6ff", Vector3(rng.randf_range(9, 18), y + 0.6, rng.randf_range(-11, -6)), 0.025, 0.35)
 		crystal.rotation = Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3))
@@ -704,40 +749,38 @@ func _build_worldmap() -> void:
 		bloom.add_child(leaf)
 	for k in 7:  # sparkles around it
 		var a := k / 7.0 * TAU
-		var st := colored(_star_mesh(0.3, 0.12, 0.05), "ffe07a", Vector3(cos(a) * 2.6, 3.0 + sin(a * 2.0) * 0.8, sin(a) * 2.6), 0.02, 0.3)
-		bloom.add_child(st)
-	place(bloom, Vector3(0, y, 1.5), 1.3, 3.0, 0.0)
-	# --- level stamps joined by dotted ink paths, in play order
-	var nodes := [
-		["1-1", -18, 10.5, "ff9ab5"], ["1-2", -12.5, 12.0, "ff9ab5"], ["1-3", -7.5, 9.0, "ff9ab5"], ["1-E", -9.5, 3.0, "26232b"],
-		["2-1", -17.0, -1.5, "f5c35b"], ["2-2", -11.5, -6.5, "f5c35b"], ["2-3", -6.0, -7.0, "f5c35b"], ["2-E", -12.5, -11.0, "26232b"],
-		["3-1", 5.5, 11.5, "7fb5ec"], ["3-2", 10.5, 11.8, "7fb5ec"], ["3-3", 18.5, 11.0, "7fb5ec"], ["3-E", 18.0, 2.5, "26232b"],
-		["4-1", 5.5, -6.5, "a585e0"], ["4-2", 11.0, -6.8, "a585e0"], ["4-3", 16.0, -12.0, "a585e0"], ["4-E", 6.0, -11.5, "26232b"],
-	]
+		bloom.add_child(colored(_star_mesh(0.3, 0.12, 0.05), "ffe07a", Vector3(cos(a) * 2.6, 3.0 + sin(a * 2.0) * 0.8, sin(a) * 2.6), 0.02, 0.3))
+	place(bloom, Vector3(0, y, 1.5), 1.3, 3.0, 0.0, _cyl_shape(0.45, 4.0), Vector3(0, 2.0, 0))
+	# --- level stamps and the paths between them
 	var prev := Vector3.INF
-	for n in nodes:
-		var pos := Vector3(n[1], y, n[2])
-		var stamp := colored(_cyl(0.75, 0.85, 0.3, 24), n[3], pos + Vector3(0, 0.15, 0), 0.04, 0.15)
-		add_child(stamp)
-		var label := Label3D.new()
-		label.text = n[0]
-		label.font = _ui_font()
-		label.font_size = 96
-		label.pixel_size = 0.008
-		label.modulate = Color("1f1d24")
-		label.outline_modulate = Color.WHITE
-		label.outline_size = 18
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.position = pos + Vector3(0, 1.3, 0)
-		add_child(label)
-		if prev != Vector3.INF:
-			var d: float = prev.distance_to(pos)
-			var steps := int(d / 0.7)
-			for k in range(1, steps):
-				var t := float(k) / steps
-				var p: Vector3 = prev.lerp(pos, t) + Vector3(0, 0.05 + sin(t * PI) * 0.0, sin(t * PI * 2.0) * 0.4)
-				add_child(colored(_sphere(0.11, 8, 5), "1f1d24", p, 0.0, 0.0))
+	for i in STAMPS.size():
+		var s: Array = STAMPS[i]
+		var pos := Vector3(s[1], y, s[2])
+		var open := stamp_open(i)
+		var done: bool = s[0] in map_done
+		add_child(colored(_cyl(0.75, 0.85, 0.3, 24), s[3] if open else "d6d1dd", pos + Vector3(0, 0.15, 0), 0.04, 0.15))
+		_map_label(s[0] if open else "?", pos + Vector3(0, 1.4, 0))
+		if done:  # a gold star on painted pages
+			var st := colored(_star_mesh(0.45, 0.2, 0.08), "ffd86b", pos + Vector3(0, 0.95, 0), 0.03, 0.3)
+			add_child(st)
+			st.create_tween().set_loops().tween_property(st, "rotation:y", TAU, 2.5).as_relative()
+		if open:
+			var page: String = s[5]
+			zones.append({"id": "stamp", "stamp": s[0], "level": page, "pos": pos, "radius": 1.0,
+				"prompt": "E  Enter %s%s" % [s[0], (": " + PAGES[page]) if page != "" else ""]})
+		if prev != Vector3.INF and open:  # the path to this stamp is drawn once it opens
+			var fresh: bool = STAMPS[i - 1][0] == map_new
+			_dotted_path(prev, pos, fresh)
 		prev = pos
+	# the way back to the Home Page: a little house stamp at the front edge
+	var hp := Vector3(HOME_STAMP.x, y, HOME_STAMP.z)
+	add_child(colored(_cyl(0.75, 0.85, 0.3, 24), "c86b6b", hp + Vector3(0, 0.15, 0), 0.04, 0.15))
+	var hut := house()
+	hut.scale = Vector3.ONE * 0.35
+	hut.position = hp + Vector3(0, 0.3, 0)
+	add_child(hut)
+	_map_label("Home", hp + Vector3(0, 1.4, 0))
+	zones.append({"id": "home", "pos": hp, "radius": 1.0, "prompt": "E  Back to the Home Page"})
 	for k in 8:
 		var c := cloud()
 		var side := 1.0 if k % 2 == 0 else -1.0  # off the edges of the book, so they frame it without hiding regions
@@ -748,9 +791,69 @@ func _build_worldmap() -> void:
 		c.scale = Vector3.ONE * rng.randf_range(1.2, 2.2)
 		add_child(c)
 		clouds.append(c)
-	checkpoint(Vector3(-18, y, 12.6))
+	# where the mochi starts: in front of the stamp it last used (or the home stamp)
+	var at := stamp_info(map_at)
+	var start := Vector3(at[1], y, at[2]) if not at.is_empty() else hp
+	checkpoint(start + Vector3(0, 0, 2.2))  # just in front, so the stamp and its label stay in view
 	checkpoints[0].node.visible = false
-	_paint_all(true)
+	# colour: a chapter region is painted once one of its pages is; a page finished just now ripples out from
+	# its stamp. The cover, crease, Ink Bloom and castle belong to no chapter and are always in colour.
+	var fresh_at := Vector3.INF
+	var info := stamp_info(map_new)
+	if not info.is_empty():
+		fresh_at = Vector3(info[1], y, info[2])
+	for mi in paintables:
+		if mi.get_meta("painted"):
+			continue
+		var p := mi.global_position
+		var ch := _chapter_of(p)
+		if ch == 0:
+			_paint(mi, true)
+		elif STAMPS.any(func(s): return s[4] == ch and s[0] in map_done):
+			var fresh: bool = fresh_at != Vector3.INF and _chapter_of(fresh_at) == ch
+			_paint(mi, not fresh, 0.4 + Vector2(p.x - fresh_at.x, p.z - fresh_at.z).length() / 8.0 if fresh else 0.0)
+
+
+## Which chapter region of the book map a point lies in (the nearest centre), or 0 off the regions.
+func _chapter_of(p: Vector3) -> int:
+	if absf(p.x) < 3.0 or p.z < -14.0 or p.y < 0.0:  # crease and Ink Bloom, the castle, the cover
+		return 0
+	var best := 0
+	for ch in CHAPTER_CENTERS:
+		var c: Vector3 = CHAPTER_CENTERS[ch]
+		if best == 0 or Vector2(p.x - c.x, p.z - c.z).length() < Vector2(p.x - CHAPTER_CENTERS[best].x, p.z - CHAPTER_CENTERS[best].z).length():
+			best = ch
+	return best
+
+
+func _map_label(text: String, pos: Vector3) -> void:
+	var label := Label3D.new()
+	label.text = text
+	label.font = _ui_font()
+	label.font_size = 96
+	label.pixel_size = 0.008
+	label.modulate = Color("1f1d24")
+	label.outline_modulate = Color.WHITE
+	label.outline_size = 18
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.position = pos
+	add_child(label)
+
+
+## Dotted ink path between two stamps; `fresh` dots pop in one after another.
+func _dotted_path(a: Vector3, b: Vector3, fresh: bool) -> void:
+	var d := a.distance_to(b)
+	var steps := int(d / 0.7)
+	for k in range(1, steps):
+		var t := float(k) / steps
+		var p := a.lerp(b, t) + Vector3(0, 0.05, sin(t * PI * 2.0) * 0.4)
+		var dot := colored(_sphere(0.11, 8, 5), "1f1d24", p, 0.0, 0.0)
+		add_child(dot)
+		if fresh:
+			dot.scale = Vector3.ONE * 0.01
+			var tw := create_tween()
+			tw.tween_interval(1.2 + k * 0.08)
+			tw.tween_property(dot, "scale", Vector3.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func sticker_ids() -> Array:

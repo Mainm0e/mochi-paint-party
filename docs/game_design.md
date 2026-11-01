@@ -84,6 +84,12 @@ mochi around the map freely (not only node to node), and **level stamps** are jo
 - **The Eraser's castle** stands beyond the top edge of the book: a big pink eraser with pencil towers. It opens
   once enough Bloom Stars are collected.
 
+**Built:** the Home Page book opens the map. The mochi walks it at a bigger size. Stand on a stamp and press E to
+enter its page; the next stamp opens when the one before it is painted, and locked ones show "?". The book starts
+as plain ink. Finishing a page paints its chapter region from that stamp, puts a gold star on the stamp and draws
+the dotted path to the next one. A Home stamp walks you back, and the pause menu and "Page painted!" card offer
+"Back to the map". Only 1-1 (Meadow 1) has a page yet; the others say "This page is still being drawn!".
+
 ### Wonder moments: Ink Blooms
 
 Inspired by how the best platformers surprise you halfway through a level, but built from our own idea:
