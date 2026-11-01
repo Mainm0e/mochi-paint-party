@@ -1,5 +1,5 @@
 extends Node
-## Doodle Mochi: game flow (menu -> Home Page -> book pages), camera, input, UI and saving.
+## Mochi Sketchbook: game flow (menu -> Home Page -> book pages), camera, input, UI and saving.
 ## Everything is built in code so the project stays a handful of readable scripts.
 ## Run with `-- --autotest=<dir>` to play through the slice, save screenshots there and quit.
 
@@ -7,7 +7,7 @@ const PAPER := Color("f8f6f0")
 const INK := Color("1f1d24")
 const ACCENT := Color("e3789a")
 const MUTED := Color("6b6672")
-const SAVE_PATH := "user://doodle_mochi.json"
+const SAVE_PATH := "user://mochi_sketchbook.json"
 const CROPS := {"eyes": Rect2i(272, 527, 480, 240), "mouths": Rect2i(432, 721, 160, 80),
 	"cheeks": Rect2i(200, 570, 624, 312), "marks": Rect2i(112, 440, 800, 400)}
 const FALL_Y := -6.0            # below this the mochi is redrawn at the last checkpoint
@@ -379,8 +379,8 @@ func _build_ui() -> void:
 	menu_card.add_child(mv)
 	var logo := _hbox(10)
 	logo.alignment = BoxContainer.ALIGNMENT_CENTER
-	logo.add_child(_label("Doodle", 46))
-	logo.add_child(_label("Mochi", 46, ACCENT))
+	logo.add_child(_label("Mochi", 42))
+	logo.add_child(_label("Sketchbook", 42, ACCENT))
 	mv.add_child(logo)
 	var sub := _label("Eat the doodles, color the book", 18, MUTED)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

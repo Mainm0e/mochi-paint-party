@@ -1,4 +1,4 @@
-# Doodle Mochi: Game Design
+# Mochi Sketchbook: Game Design
 
 *Status: first draft, 2026-11-01. Direction chosen: **Sketchbook Adventure**, casual with some challenge, PC (Windows) first.*
 
@@ -101,4 +101,4 @@ The playthrough can be replayed with `-- --autotest=<dir>` (see `scripts/main.gd
 - Should the camera stay free (current) or get a fixed "storybook" angle on some pages?
 - How long should a power last: until you spit it, or on a timer?
 - Do stickers unlock creator items only, home decorations, or both?
-- Title: keep **Doodle Mochi**?
+- ~~Title~~: decided, the game is called **Mochi Sketchbook** (it was "Doodle Mochi").

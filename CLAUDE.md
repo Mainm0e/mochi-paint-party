@@ -1,4 +1,4 @@
-# Doodle Mochi
+# Mochi Sketchbook
 
 A cozy single-player 3D **sketchbook adventure** for PC (Windows), built in **Godot 4.7**. A squishy mochi
 eats ink drops and doodles to restore a sketchbook's color and borrow doodle powers. Full design:
@@ -16,7 +16,7 @@ are for general feel only; never copy their models, textures, characters or leve
 | `blender/mochi/` | Output of `make_mochi.py` (renders, `mochi.blend`, `mochi.glb`, `layers/`) |
 | `tools/make_audio.py` | Synthesizes all music + SFX WAVs (numpy) into `godot/assets/audio/` |
 | `docs/game_design.md` | Game design doc |
-| `creator/`, `game/` | Older three.js web prototypes (Mochi Maker, web Doodle Mochi). Not the main game. |
+| `creator/`, `game/` | Older three.js web prototypes (Mochi Maker, web "Doodle Mochi", the old title). Not the main game. |
 | `blender/make_teen_base.py`, `blender/teen/`, `blender/archive/` | Earlier chibi-human experiments, abandoned for the mochi. Keep, don't extend. |
 
 ## Commands (Git Bash)
@@ -37,14 +37,14 @@ B="/c/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 After rebuilding the mochi, copy assets into Godot, then re-import:
 `blender/mochi/mochi.glb` -> `godot/assets/mochi/`, `blender/mochi/layers/` -> `godot/assets/mochi/layers/` (delete `layers.json` there).
 
-The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Doodle Mochi/doodle_mochi.json` afterwards so the user starts fresh.
+The autotest writes a save file; delete `%APPDATA%/Godot/app_userdata/Mochi Sketchbook/mochi_sketchbook.json` afterwards so the user starts fresh.
 
 ## How the game is put together
 
 - Everything is built in code (`scenes/main.tscn` is just `Main` + `main.gd`). No hand-made scenes.
 - `main.gd`: flow (menu -> creator -> Home Page -> pages), input map (registered in code), third-person camera
   (captured mouse, yaw/pitch), HUD/menus (paper cards, ink borders, `Segoe Print` font), thought clouds
-  (`think()`), eating loop (`_eat`), save (`user://doodle_mochi.json`), the `_autotest` tour.
+  (`think()`), eating loop (`_eat`), save (`user://mochi_sketchbook.json`), the `_autotest` tour.
 - `world.gd`: `load_level("home" | "meadow1")` builds paper islands (StaticBody3D), doodle props (white +
   ink outline, painted later via instance uniform `albedo`), edibles (drop / power / sticker / smudgie / seal),
   checkpoints, switches + bridges, Smudgie AI, spat stars, painting ripples.

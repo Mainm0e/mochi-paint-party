@@ -1,4 +1,4 @@
-"""Synthesizes Doodle Mochi's music and sound effects (all original, made from sine/noise math).
+"""Synthesizes Mochi Sketchbook's music and sound effects (all original, made from sine/noise math).
 
 Writes 16-bit mono WAVs to the folder given after "--" (default: godot/assets/audio).
 Run with any Python that has numpy, e.g. Blender's:
