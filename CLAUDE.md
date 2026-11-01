@@ -17,7 +17,7 @@ are for general feel only; never copy their models, textures, characters or leve
 | `tools/make_audio.py` | Synthesizes all music + SFX WAVs (numpy) into `godot/assets/audio/` |
 | `docs/game_design.md` | Game design doc |
 | `editor/` | **Level editor** web app (grid map maker). `node editor/serve.mjs` -> http://localhost:5175; saves `godot/levels/<name>.json`, Play launches Godot |
-| `godot/levels/` | Pages made in the level editor (`sample.json`; `village`/`seaside`/`snowy`/`castle` open their World Map stamps) |
+| `godot/levels/` | Pages made in the level editor (`sample.json`; `seaside`/`snowy`/`castle` open their World Map stamps; `meadow`/`village` are built in code and reserved) |
 | `creator/`, `game/` | Older three.js web prototypes (Mochi Maker, web "Doodle Mochi", the old title). Not the main game. |
 | `blender/make_teen_base.py`, `blender/teen/`, `blender/archive/` | Earlier chibi-human experiments, abandoned for the mochi. Keep, don't extend. |
 

@@ -62,7 +62,7 @@
   <header>
     <h1>Mochi Level Editor</h1>
     <label class="hint" for="levelName">Level</label>
-    <input id="levelName" type="text" value="village" size="12" title="File name: a-z, 0-9, - and _">
+    <input id="levelName" type="text" value="my_page" size="12" title="File name: a-z, 0-9, - and _">
     <select id="levelList" title="Open a saved level"><option value="">Open…</option></select>
     <button class="btn" id="newBtn">New</button>
     <button class="btn" id="saveBtn">Save</button>
@@ -694,7 +694,7 @@ $("v3d").onclick = () => setView("3d");
 buildPanels();
 try {
   const d = JSON.parse(localStorage.getItem("mochi-editor-draft") || "null");
-  if (d && d.level && d.level.heights) { level = d.level; $("levelName").value = d.name || "village"; }
+  if (d && d.level && d.level.heights) { level = d.level; $("levelName").value = d.name || "my_page"; }
 } catch {}
 syncLevelForm();
 setTool("raise", null);

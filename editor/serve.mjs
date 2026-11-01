@@ -15,6 +15,7 @@ const GODOT = process.env.GODOT || "C:/Users/mainm/Godot/Godot_v4.7.2-stable_win
 const PORT = Number(process.argv[2]) || 5175;
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".json": "application/json", ".png": "image/png" };
 const NAME = /^[a-z0-9_-]{1,40}$/;
+const BUILT_IN = ["home", "worldmap", "meadow", "village"];  // pages built in code: an editor level with the same name would never load
 
 async function body(req) {
   const chunks = [];
@@ -36,6 +37,7 @@ createServer(async (req, res) => {
     if (m) {
       const name = m[2];
       if (!NAME.test(name)) return json(400, { error: "Level names use a-z, 0-9, - and _ only." });
+      if (BUILT_IN.includes(name) && req.method !== "GET") return json(400, { error: `"${name}" is a built-in page; pick another name.` });
       const file = join(LEVELS, name + ".json");
       if (m[1] === "levels" && req.method === "GET") return json(200, JSON.parse(await readFile(file, "utf8")));
       if (m[1] === "levels" && req.method === "PUT") {
