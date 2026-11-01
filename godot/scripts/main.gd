@@ -601,17 +601,7 @@ func _build_ui() -> void:
 	speech.visible = false
 	bottom.add_child(speech)
 	bottom.add_child(prompt)
-	var emote_card := PanelContainer.new()
-	emote_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var erow := _hbox(6)
-	for i in Mochi.EMOTES.size():
-		var n: String = Mochi.EMOTES[i]
-		var b := _button("%d %s" % [i + 1, n], false, 15)
-		b.pressed.connect(func(): mochi.emote(n))
-		erow.add_child(b)
-	emote_card.add_child(erow)
-	bottom.add_child(emote_card)
-	var hint := _label("Mouse look  ·  WASD walk  ·  Shift sprint  ·  Space hop (x2)  ·  Q spit  ·  E use  ·  Esc menu", 15, MUTED)
+	var hint := _label("Mouse look  ·  WASD walk  ·  Shift sprint  ·  Space hop (x2)  ·  Q spit  ·  E use  ·  1-6 emotes  ·  Esc menu", 15, MUTED)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bottom.add_child(hint)
 	hud.add_child(bottom)
