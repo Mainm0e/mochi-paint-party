@@ -16,7 +16,8 @@ are for general feel only; never copy their models, textures, characters or leve
 | `godot/` | **The game.** `scripts/` (main, world, mochi, audio), `shaders/`, `assets/` (mochi glb + face layers, audio) |
 | `blender/make_mochi.py` | Builds the rigged mochi: body, face decals, toppings, emote faces + FX props, animations, face layer PNGs, `mochi.glb` |
 | `blender/mochi/` | Output of `make_mochi.py` (renders, `mochi.blend`, `mochi.glb`, `layers/`) |
-| `tools/make_audio.py` | Synthesizes all music + SFX WAVs (numpy) into `godot/assets/audio/` |
+| `tools/make_audio.py` | Synthesizes the sound effects (numpy) into `godot/assets/audio/` |
+| `tools/make_music.py` | Composes + synthesizes the six music loops (sunny resort-pop feel: drums, bass, e-piano, pads, leads) |
 | `docs/game_design.md` | Game design doc |
 | `editor/` | **Level editor** web app (grid map maker). `node editor/serve.mjs` -> http://localhost:5175; saves `godot/levels/<name>.json`, Play launches Godot |
 | `godot/levels/` | Pages made in the level editor (`sample.json`; `seaside`/`snowy`/`castle` open their World Map stamps; `meadow`/`village` are built in code and reserved) |
@@ -39,6 +40,7 @@ node editor/serve.mjs                                              # level edito
 B="/c/Program Files/Blender Foundation/Blender 5.2/blender.exe"
 "$B" --background --factory-startup --python blender/make_mochi.py -- blender/mochi --no-video   # ~2 min; drop --no-video for the emote MP4 (~10 min)
 "$B" --background --factory-startup --python tools/make_audio.py -- godot/assets/audio
+"$B" --background --factory-startup --python tools/make_music.py -- godot/assets/audio   # ~10 s
 ```
 
 After rebuilding the mochi, copy assets into Godot, then re-import:

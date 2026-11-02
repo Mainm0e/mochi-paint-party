@@ -10,7 +10,8 @@ const SOUNDS := ["step", "hop", "jump", "land", "squish", "collect", "win", "cli
 	"step_snow", "step_ice", "melt", "boing", "night",
 	"emote_happy", "emote_love", "emote_angry", "emote_sad", "emote_surprised", "emote_sleepy"]
 const MUSIC_DB := -9.0    # music sits under the effects
-const TRACKS := ["music_paper_stroll", "music_village_square", "music_seaside_breeze", "music_snowy_notebook"]
+const TRACKS := ["music_paper_stroll", "music_meadow_fairway", "music_village_square", "music_seaside_breeze",
+	"music_snowy_notebook", "music_castle_climb"]  # made by tools/make_music.py
 const VOICES := 10
 
 var streams := {}

@@ -12,7 +12,8 @@ const TEST_SAVE_PATH := "user://test_run.json"   # test runs (--autotest, --leve
 const CROPS := {"eyes": Rect2i(272, 527, 480, 240), "mouths": Rect2i(432, 721, 160, 80),
 	"cheeks": Rect2i(200, 570, 624, 312), "marks": Rect2i(112, 440, 800, 400)}
 const FALL_Y := -6.0            # below this the mochi is redrawn at the last checkpoint
-const MUSIC := {"village": "music_village_square", "seaside": "music_seaside_breeze", "snowy": "music_snowy_notebook"}  # pages with their own theme
+const MUSIC := {"meadow": "music_meadow_fairway", "village": "music_village_square", "seaside": "music_seaside_breeze",
+	"snowy": "music_snowy_notebook", "castle": "music_castle_climb"}  # each scene's theme; the studio and map play music_paper_stroll
 const STAR_COLORS := {"puffy": "dcebff", "stone": "b5b8c6", "sketch": "ffe07a", "bubble": "bfe6ff", "toasty": "ff9b4a", "boing": "c9f0b0"}
 
 enum Mode { MENU, CREATE, PLAY, PAUSED }

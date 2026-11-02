@@ -370,10 +370,8 @@ def music_seaside():
 
 
 sfx()
-music()
+# music: see tools/make_music.py
 chapter_sfx()
-music_village()
-music_seaside()
 
 
 def snowy_sfx():
@@ -430,4 +428,3 @@ def music_snowy():
 
 
 snowy_sfx()
-music_snowy()
