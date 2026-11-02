@@ -119,6 +119,14 @@ Polish so far: camera collision (ray from mochi to camera, `_update_camera`), ju
 (`mochi.gd` `_buffer` / `_cuttable`), Bloom Star celebration (`_celebrate`: hit-stop, `_punch` camera lean, confetti),
 star light beams (`bloom()`), pause-menu page map (`_draw_page_map`).
 
+Chapter 4 **Snowy Notebook** (`_build_snowy`): Toasty (`melt_near`, `meltables`), Boing (`Mochi.BOING`), slippery ice
+(`mochi.slippery` from surface "ice"), cold lake water (`cold_water` in `in_sea`), nightfall after 3 stars
+(`world.set_night`, `main._nightfall`: dims the picture, shows `sky_path`). 12 stars.
+Chapter 5 **The Eraser's Castle** (`_build_castle`, the finale): 4 power rooms + the Eraser boss (`boss`, `_tick_boss`:
+roam/wind/charge/dizzy; `_star_hits_boss` while dizzy, 3 hits; `boss_event` -> `main._on_boss`). Its star b_eraser ->
+`main._ending()` (credits card, `save.finished`). 5 stars. The game is complete start to credits.
+Tests: `--autotest` runs everything; `--autotest-late=<dir>` runs only Snowy + Castle (`_autotest_late`).
+
 Next candidates (see the roadmap in docs/level_design.md): hand playtest + tuning;
 camera collision (clips through props); spit bounce; the Village page /
 more chapters; the Eraser; friends moving to the Home Page; decorating it with stickers; a Windows build.

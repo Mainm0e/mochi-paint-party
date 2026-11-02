@@ -112,6 +112,7 @@ func _ready() -> void:
 		speech_label.text = "%s:  %s" % [title, text]
 		_speech_until = time + seconds)
 	world.tide_changed.connect(_on_tide)
+	world.boss_event.connect(_on_boss)
 	mochi.bounced.connect(func(): audio.play("bubble", -2.0, 0.1))
 	world.race_update.connect(func(text: String):
 		audio.play("collect", -6.0, 0.0, 1.4)
@@ -122,6 +123,8 @@ func _ready() -> void:
 	audio.set_volume("SFX", save.sfx)
 	audio.start_music()
 	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--autotest-late="):  # only the later chapters (quicker while working on them)
+			_autotest_late(a.trim_prefix("--autotest-late="))
 		if a.begins_with("--autotest="):
 			_autotest(a.trim_prefix("--autotest="))
 		if a.begins_with("--level="):  # straight into a page (the level editor's Play button)
@@ -830,6 +833,7 @@ func _on_power_changed(p: String, announce := true) -> void:
 
 ## Something was swallowed: count it, save it and react.
 func _on_ate(kind: String, e: Dictionary) -> void:
+	var page := world.level  # (the reactions below wait a moment; if the player has left by then, they stop)
 	var ps := _page_save(world.level)
 	if kind in ["drop", "sticker", "bloom", "item"] and not e.id in ps.eaten:
 		ps.eaten.append(e.id)
@@ -867,13 +871,20 @@ func _on_ate(kind: String, e: Dictionary) -> void:
 				_just_done = world.level  # the map celebrates the newly opened path
 	_store()
 	await get_tree().create_timer(Mochi.MUNCH_TIME).timeout  # let it finish chewing first
+	if world.level != page:
+		return
 	if kind == "bloom":
 		mochi.emote("Happy")
-		var n := _stars(world.level)
-		var total := world.page_stars(world.level)
+		var n := _stars(page)
+		var total := world.page_stars(page)
 		await get_tree().create_timer(1.6).timeout
+		if world.level != page:
+			return
+		if e.id == "b_eraser":  # the Eraser is beaten and its star eaten: the end!
+			_ending()
+			return
 		if n == World.STARS_TO_OPEN:
-			think("A new path opened on the World Map!", 3.0)
+			think("A new path opened on the Big Canvas!", 3.0)
 		if n == total:  # every star found: the whole page is in colour again
 			var stickers: int = save.stickers.filter(func(s): return String(s).begins_with(world.level + ":")).size()
 			win_text.text = "%s is full of color again!\nBloom Stars %d / %d   ·   Stickers %d / 5" % [
@@ -1214,6 +1225,81 @@ func _nightfall(on := true, instant := false) -> void:
 	tw.tween_property(environment, "adjustment_saturation", sat, 2.5)
 	tw.tween_property(environment, "background_color", bg, 2.5)
 	tw.tween_property(environment, "fog_light_color", bg, 2.5)
+
+
+## The Eraser did something: the mochi reacts so the player always knows what to do next.
+func _on_boss(kind: String) -> void:
+	match kind:
+		"wind":
+			audio.play("squish", -4.0, 0.0, 0.6)
+			think("It's winding up... get out of the way!", 1.4)
+		"dizzy":
+			audio.play("land", -2.0, 0.0, 0.6)
+			shake = 0.2
+			think("It's dizzy! Spit a star at it!" if mochi.power != "" else "It's dizzy! Eat a cloud, then spit a star!", 2.2)
+		"bounce":
+			think("It shrugged that off. Wait till it's dizzy!", 1.8)
+		"hit":
+			audio.play("collect", 0.0, 0.0, 0.7)
+			shake = 0.3
+			think(["Bonk! It's getting smaller!", "Take that, Eraser!"].pick_random(), 1.8)
+		"defeated":
+			audio.play("win", 0.0, 0.0)
+			shake = 0.4
+			_toast("The Eraser is rubbed out!")
+
+
+## The end: the Big Canvas is painted again. A card with the story's ending and the credits, then home.
+func _ending() -> void:
+	save.finished = true
+	_store()
+	mode = Mode.PAUSED
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	audio.play("win", 0.0, 0.0, 0.9)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var dim := ColorRect.new()
+	dim.color = Color(PAPER, 0.0)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size.x = 560
+	var v := _vbox(12)
+	card.add_child(v)
+	for line in [["The Big Canvas is", 30, INK], ["painted again!", 38, ACCENT],
+			["The Eraser is gone, every scene is back in colour,\nand all your doodle friends are safe at home.", 18, MUTED],
+			["Thank you for playing", 22, INK], ["Mochi Paint Party", 30, ACCENT],
+			["Made by mainm, with Claude\nEvery doodle, sound and tune made for this game", 16, MUTED]]:
+		var l := _label(line[0], line[1], line[2])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.modulate.a = 0.0
+		v.add_child(l)
+	var stars_total := 0
+	for p in World.PAGE_STARS:
+		stars_total += _stars(p)
+	var tally := _label("Bloom Stars found: %d   ·   Stickers: %d" % [stars_total, save.stickers.size()], 18, INK)
+	tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tally.modulate.a = 0.0
+	v.add_child(tally)
+	var home := _button("Back to my Studio", true)
+	home.modulate.a = 0.0
+	home.pressed.connect(func():
+		root.queue_free()
+		enter_level("home")
+		set_mode(Mode.PLAY)
+		think("Home sweet studio. Every scene is painted!", 3.0))
+	v.add_child(home)
+	center.add_child(card)
+	ui.add_child(root)
+	var tw := create_tween()
+	tw.tween_property(dim, "color:a", 0.75, 1.2)
+	for c in v.get_children():  # lines appear one after another
+		tw.tween_property(c, "modulate:a", 1.0, 0.7)
+	world.confetti(mochi.global_position + Vector3(0, 1.0, 0))
+	get_tree().create_timer(1.2).timeout.connect(func(): world.confetti(mochi.global_position + Vector3(0, 1.5, 0)))
 
 
 ## Seaside's tide turned: a bell, a toast, and the mochi says what it means.
@@ -1643,5 +1729,165 @@ func _autotest(dir: String) -> void:
 	await star_wait.call(_stars("seaside"))
 	await shot.call("19_lighthouse")
 	print("AUTOTEST seaside stars: %d / %d" % [_stars("seaside"), world.page_stars("seaside")])
+	await _autotest_late(dir)
+
+
+## The later chapters' tour (also run on its own with --autotest-late=<dir>): Snowy Notebook, then the finale.
+func _autotest_late(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var shot := func(name: String):
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(dir.path_join(name + ".png"))
+	var wait := func(s: float): await get_tree().create_timer(s).timeout
+	var place := func(pos: Vector3, face := PI):
+		mochi.global_position = pos
+		mochi.velocity = Vector3.ZERO
+		mochi.rotation.y = face
+		follow = pos
+	var star_wait := func(page: String, before: int):
+		for i in 60:
+			await get_tree().create_timer(0.05).timeout
+			if _stars(page) > before:
+				break
+		await get_tree().create_timer(0.3).timeout
+	var eat_power := func(at: Vector3, p: String):
+		place.call(at)
+		for i in 60:
+			await get_tree().create_timer(0.05).timeout
+			if mochi.power == p:
+				break
+		await get_tree().create_timer(0.8).timeout
+	has_mochi = true
+	# --- Chapter 4: the Snowy Notebook
+	enter_level("snowy")
+	set_mode(Mode.PLAY)
+	mochi.set_power("")
+	await wait.call(2.0)
+	await shot.call("20_snowy_start")
+	# Toasty Mochi melts the ice castle gate
+	await eat_power.call(Vector3(-3.5, 0.1, 14.3), "toasty")
+	print("AUTOTEST power at the ember: '%s'" % mochi.power)
+	var ice_before := world.meltables.size()
+	place.call(Vector3(0, 0.1, -10.6))
+	await wait.call(1.5)
+	print("AUTOTEST melted the gate: %s (ice left %d of %d)" % [world.meltables.size() < ice_before, world.meltables.size(), ice_before])
+	await shot.call("21_melted_gate")
+	place.call(Vector3(0, 0.1, -14.8))
+	await star_wait.call("snowy", 0)
+	print("AUTOTEST castle star: stars %d" % _stars("snowy"))
+	# Boing Mochi: a super hop, then the cliff top
+	await eat_power.call(Vector3(3.5, 0.1, 14.3), "boing")
+	print("AUTOTEST power at the spring: '%s'" % mochi.power)
+	place.call(Vector3(0, 0.1, 6.0))
+	await wait.call(0.3)
+	var hop_peak := 0.0
+	Input.action_press("jump")
+	mochi.jump()
+	for i in 30:
+		await wait.call(0.03)
+		hop_peak = maxf(hop_peak, mochi.global_position.y)
+	Input.action_release("jump")
+	print("AUTOTEST boing hop height: %.2f (a normal hop is ~0.6)" % hop_peak)
+	place.call(Vector3(-23, 5.0, 0.8))
+	await star_wait.call("snowy", 1)
+	# the frozen lake: slippery floes, a star in the middle
+	place.call(Vector3(19, 0.2, 7.9))
+	await wait.call(0.3)
+	print("AUTOTEST on the ice: slippery %s" % mochi.slippery)
+	await star_wait.call("snowy", 2)
+	print("AUTOTEST snowy stars: %d, night %s, sky platforms shown %s" % [_stars("snowy"), world.night,
+		world.sky_path.all(func(p): return p.visible)])
+	await wait.call(3.0)
+	await shot.call("22_nightfall")
+	place.call(Vector3(-3, 8.2, 8.6))
+	await star_wait.call("snowy", 3)
+	print("AUTOTEST sky star: stars %d" % _stars("snowy"))
+	cinematic = true
+	ui.visible = false
+	camera.position = Vector3(14, 10, 26)
+	camera.look_at(Vector3(2, 4, 12))
+	await wait.call(0.4)
+	await shot.call("23_night_sky")
+	cinematic = false
+	ui.visible = true
+	enter_level("worldmap")
+	await wait.call(1.0)
+	print("AUTOTEST day again on the map: night %s" % world.night)
+	# --- Chapter 5: the Eraser's Castle
+	enter_level("castle")
+	set_mode(Mode.PLAY)
+	mochi.set_power("")
+	await wait.call(2.0)
+	await shot.call("24_castle_start")
+	await eat_power.call(Vector3(-3, 0.1, 18.3), "sketch")
+	place.call(Vector3(0, 0.1, 13.4), PI)
+	yaw = 0.0
+	await wait.call(0.3)
+	_sketch()
+	Input.action_press("move_forward")
+	await wait.call(1.4)
+	_sketch()  # the gap is wider than one bridge: draw a second one from the first
+	await wait.call(1.4)
+	Input.action_release("move_forward")
+	await star_wait.call("castle", 0)
+	print("AUTOTEST room 1 (sketch the gap): z %.1f, stars %d" % [mochi.global_position.z, _stars("castle")])
+	await eat_power.call(Vector3(4, 0.1, 4.3), "toasty")
+	place.call(Vector3(0, 0.1, -0.6))
+	await wait.call(1.5)
+	place.call(Vector3(0, 0.1, -3.8))
+	await star_wait.call("castle", 1)
+	print("AUTOTEST room 2 (melt the wall): ice left %d, stars %d" % [world.meltables.size(), _stars("castle")])
+	await eat_power.call(Vector3(4, 0.1, -5.7), "boing")
+	for s in [[-11.0, 0.1], [-11.6, 0.1], [-14.6, 1.7], [-17.6, 3.3]]:  # boing up the steps, one hop each
+		place.call(Vector3(0, s[1], s[0]), PI)
+		Input.action_press("jump")
+		Input.action_press("move_forward")
+		mochi.jump()
+		await wait.call(0.9)
+		Input.action_release("jump")
+		Input.action_release("move_forward")
+	await wait.call(0.5)
+	print("AUTOTEST room 3 (boing up): y %.1f (upper hall is 4.8)" % mochi.global_position.y)
+	place.call(Vector3(0, 4.9, -19.0))
+	await star_wait.call("castle", 2)
+	await eat_power.call(Vector3(4, 4.9, -20.7), "stone")
+	place.call(Vector3(-3, 4.9, -24.5))
+	await wait.call(0.3)
+	Input.action_press("jump")
+	mochi.jump()
+	await wait.call(0.25)
+	mochi.jump()
+	Input.action_release("jump")
+	await wait.call(1.8)
+	print("AUTOTEST room 4 (stomp the switch): bridge raised %s" % world.switches[0].on)
+	place.call(Vector3(4.5, 4.9, -23.8))
+	await star_wait.call("castle", 3)
+	# the Eraser: dodge, wait for dizzy, spit three stars
+	place.call(Vector3(0, 4.9, -37), PI)
+	mochi.set_power("")
+	await wait.call(1.0)
+	await shot.call("25_eraser")
+	var hits := 0
+	for round_i in 40:
+		await wait.call(0.25)
+		if world.boss.state == "dizzy":
+			var bn: Node3D = world.boss.node
+			var from := bn.position + Vector3(0, 0.1, 0) + (Vector3(world.boss.center.x, 0, world.boss.center.z) - Vector3(bn.position.x, 0, bn.position.z)).normalized() * 3.0
+			place.call(from, atan2(bn.position.x - from.x, bn.position.z - from.z))
+			await wait.call(0.1)
+			mochi.set_power("puffy")
+			mochi.spit()
+			await wait.call(1.0)
+			hits = 3 - world.boss.hp
+			if world.boss.state == "gone":
+				break
+	print("AUTOTEST Eraser hits %d, state %s" % [hits, world.boss.state])
+	await wait.call(2.0)
+	await shot.call("26_eraser_gone")
+	place.call(world.boss.center + Vector3(0, 0.2, 1.0))
+	await star_wait.call("castle", 4)
+	await wait.call(4.0)
+	print("AUTOTEST castle stars %d / %d, finished %s" % [_stars("castle"), world.page_stars("castle"), save.get("finished", false)])
+	await shot.call("27_the_end")
 	print("AUTOTEST DONE")
 	get_tree().quit()

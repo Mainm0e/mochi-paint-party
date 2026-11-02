@@ -14,16 +14,18 @@ signal bloom_revealed(id: String)
 signal race_update(text: String)
 signal friend_said(title: String, text: String, seconds: float)
 signal tide_changed(phase: String)  # "high", "falling", "low", "soon" (rising in a moment), "rising"
+signal boss_event(kind: String)  # the Eraser: "wind", "dizzy", "hit", "bounce", "defeated"
 
 const REACH := 1.7             # how close something edible must be for the mochi to start inhaling it
 const PAPER := Color("f8f6f0")
 const WHITE := Color.WHITE
 const ISLAND_DEPTH := 0.9
-const PAGES := {"meadow": "The Meadow", "village": "The Village", "seaside": "Seaside", "snowy": "Snowy Notebook"}
-const PAGE_STARS := {"meadow": 12, "village": 12, "seaside": 12, "snowy": 12}   # Bloom Stars hidden on each page
+const PAGES := {"meadow": "The Meadow", "village": "The Village", "seaside": "Seaside", "snowy": "Snowy Notebook",
+	"castle": "The Eraser's Castle"}
+const PAGE_STARS := {"meadow": 12, "village": 12, "seaside": 12, "snowy": 12, "castle": 5}   # Bloom Stars on each page
 const STARS_TO_OPEN := 5        # Bloom Stars from a chapter that open the path to the next one
 const SURFACES := {"d9b38c": "wood", "e6c79c": "wood", "c99a6a": "wood", "f6e3b4": "sand", "cfe9f7": "ice"}  # by paper colour
-const PAGE_SURFACE := {"village": "stone", "seaside": "sand", "snowy": "snow"}  # what the ground is, page by page
+const PAGE_SURFACE := {"village": "stone", "seaside": "sand", "snowy": "snow", "castle": "stone"}  # ground, page by page
 const RACE_TIME := 30.0
 const TIDE_HIGH := 0.2          # sea level at high tide (Seaside)
 const TIDE_LOW := -1.2
@@ -49,6 +51,7 @@ var meltables: Array = []                # ice Toasty Mochi can melt
 var cold_water: Array[Rect2] = []        # icy water (x/z rects): fall in and you're redrawn
 var sky_path: Array = []                 # Snowy Notebook's constellation platforms, shown at night
 var night := false
+var boss := {}                           # the Eraser (castle arena); empty elsewhere
 var _keep: Array = []                    # [x, z, radius] spots props must stay clear of
 var reveals := {}                        # editor pages: hidden star id -> "drops" / "smudgies" (what reveals it)
 var drops: Array[Dictionary] = []        # the paint drops (for the HUD)
@@ -89,6 +92,7 @@ func load_level(name: String, eaten: Array = []) -> void:
 	cold_water.clear()
 	sky_path.clear()
 	night = false
+	boss = {}
 	_keep.clear()
 	reveals.clear()
 	race = {"on": false, "next": 0, "t": 0.0, "hoops": [], "friend": "", "star": "", "time": RACE_TIME}
@@ -100,6 +104,8 @@ func load_level(name: String, eaten: Array = []) -> void:
 		_build_home()
 	elif name == "worldmap":
 		_build_worldmap()
+	elif name == "castle":
+		_build_castle()
 	elif name == "snowy":
 		_build_snowy()
 	elif name == "seaside":
@@ -2158,6 +2164,186 @@ func _snowman(pos: Vector3) -> void:
 	place(g, pos, 1.0, 1.2, INF, _cyl_shape(0.5, 2.0), Vector3(0, 1.0, 0))
 
 
+# ================================================================== Chapter 5: the Eraser's Castle (finale)
+## The Eraser's Castle: four rooms in a row, each needing one power (Sketch a gap, Toasty an ice wall, Boing a
+## tall climb, Stone a switch for the arena bridge), each ending in a Bloom Star. Then the arena: the Eraser
+## charges across it; when it crashes into the edge it's dizzy, and three spat stars rub it out for good.
+func _build_castle() -> void:
+	for c in clouds:
+		c.position.y += 6.0
+	var stone := "e8dff0"   # the castle's pale lilac floors
+	# R1, the gate hall: a pencil doodle and a gap to sketch across
+	_castle_floor(0, 19, 14, 12, 0.0, stone)               # z 13 .. 25
+	checkpoint(Vector3(0, 0, 22))
+	power_doodle("sketch", Vector3(-3, 0, 17))
+	_signpost(Vector3(3, 0, 15.5), "Room 1: draw a bridge")
+	_castle_floor(0, 3, 14, 8, 0.0, stone)                 # z -1 .. 7  (6 m gap from z 7 to 13)
+	bloom("b_room1", Vector3(0, 0, 5))
+	# R2: an ember doodle and an ice wall across the way on
+	checkpoint(Vector3(-4, 0, 4))
+	power_doodle("toasty", Vector3(4, 0, 3))
+	_ice_block(Vector3(0, 0, -2), Vector3(14, 3.6, 1.0), true)
+	_castle_floor(0, -6.5, 14, 11, 0.0, stone)             # z -12 .. -1 (runs under the ice wall)
+	bloom("b_room2", Vector3(0, 0, -5))
+	# R3: a spring doodle and a tall climb
+	checkpoint(Vector3(-4, 0, -6))
+	power_doodle("boing", Vector3(4, 0, -7))
+	_signpost(Vector3(-4, 0, -9), "Room 3: boing up")
+	for s in [[0, -13.5, 1.6], [0, -16.5, 3.2]]:
+		var step := island(s[0], s[1], 14, 3, s[2], stone, s[2])
+		_paint(step.get_child(1), true)
+	_castle_floor(0, -22, 14, 8, 4.8, stone)               # z -26 .. -18, the upper hall at 4.8
+	bloom("b_room3", Vector3(0, 4.8, -20))
+	# R4: a pebble doodle; stomping the switch raises the bridge to the arena
+	checkpoint(Vector3(-4, 4.8, -21))
+	power_doodle("stone", Vector3(4, 4.8, -22))
+	var br := island(0, -30, 3, 8, 4.8, "d9b38c", 0.35)   # z -34 .. -26
+	_paint(br.get_child(1), true)
+	br.position.y -= 5.0
+	switch(Vector3(-3, 4.8, -24.5), br, br.position.y + 5.0)
+	bloom("b_room4", Vector3(4.5, 4.8, -25))
+	# the arena
+	var ac := Vector3(0, 4.8, -43)
+	_castle_floor(ac.x, ac.z, 18, 18, 4.8, "f6efe2")        # z -52 .. -34
+	checkpoint(ac + Vector3(0, 0, 7.5))
+	for k in 4:  # pencil towers at the arena's corners
+		var t := Node3D.new()
+		t.add_child(doodle(_cyl(0.6, 0.6, 5.0, 6), "ffd86b", Vector3(0, 2.5, 0), 0.04))
+		t.add_child(doodle(_cyl(0.0, 0.6, 1.4, 6), "f3d2a6", Vector3(0, 5.7, 0), 0.03))
+		t.add_child(doodle(_cyl(0.0, 0.2, 0.45, 6), "5a5560", Vector3(0, 6.2, 0), 0.02))
+		place(t, ac + Vector3(-8.2 + 16.4 * (k % 2), 0, -8.2 + 16.4 * (k / 2)), 1.0, 1.4, 0.0, _cyl_shape(0.6, 5.0), Vector3(0, 2.5, 0))
+	for side in [-1.0, 1.0]:  # cloud doodles to spit with, growing back after each gulp
+		power_doodle("puffy", ac + Vector3(side * 6.0, 0, 6.0))
+	_eraser(ac)
+	bloom("b_eraser", ac, true)
+	for i in 6:  # paint drops along the way
+		paint_drop("d%d" % (i + 1), [Vector3(-5, 0, 20), Vector3(5, 0, 1), Vector3(-5, 0, -9), Vector3(-5, 4.8, -24),
+			Vector3(0, 4.8, -36), Vector3(5, 0, 23)][i], ["ff9ab5", "ffd86b", "8fd0f5", "a8d8a0", "b9a2ee", "ffb38a"][i])
+	# castle walls along the rooms (decoration, too tall to see over), banners, the Eraser's flag
+	for side in [-1.0, 1.0]:
+		var wall := island(side * 7.6, -4, 1.2, 58, 2.6, "d6c8e4", 2.6)
+		_paint(wall.get_child(1), true)
+		for z in range(22, -26, -8):
+			var banner := colored(_box(0.08, 1.6, 1.0), "f59ab4" if int(z) % 16 == 0 else "7fb5ec", Vector3(side * 7.0, 2.2, z), 0.02, 0.1)
+			add_child(banner)
+
+
+func _castle_floor(x: float, z: float, sx: float, sz: float, top: float, paint: String) -> void:
+	var f := island(x, z, sx, sz, top, paint, top + ISLAND_DEPTH)
+	_paint(f.get_child(1), true)
+
+
+## The Eraser: a big pink eraser in a blue paper sleeve, with grumpy eyes.
+func _eraser(at: Vector3) -> void:
+	var g := Node3D.new()
+	g.add_child(colored(_box(3.2, 1.6, 2.0), "f59ab4", Vector3(0, 0.8, 0), 0.05, 0.15))
+	g.add_child(colored(_box(3.3, 1.2, 2.1), "7fb5ec", Vector3(0.7, 0.8, 0), 0.05, 0.15))   # the sleeve
+	for sx in [-1.0, 1.0]:
+		g.add_child(colored(_sphere(0.2, 10, 6), "ffffff", Vector3(-0.9, 1.15, sx * 0.45), 0.0, 0.0))
+		g.add_child(colored(_sphere(0.1, 8, 5), "1f1d24", Vector3(-1.05, 1.15, sx * 0.45), 0.0, 0.0))
+		var brow := colored(_box(0.08, 0.06, 0.4), "1f1d24", Vector3(-1.1, 1.42, sx * 0.45), 0.0, 0.0)
+		brow.rotation.x = sx * 0.5
+		g.add_child(brow)
+	var dizzy := Node3D.new()  # little stars circling when it's dizzy
+	for k in 3:
+		var a := k / 3.0 * TAU
+		dizzy.add_child(colored(_star_mesh(0.22, 0.1, 0.04), "ffd86b", Vector3(cos(a) * 0.8, 0, sin(a) * 0.8), 0.01, 0.4))
+	dizzy.position = Vector3(0, 2.1, 0)
+	dizzy.visible = false
+	g.add_child(dizzy)
+	g.position = at + Vector3(0, 0, -4)
+	add_child(g)
+	boss = {"node": g, "dizzy": dizzy, "center": at, "state": "roam", "t": 0.0, "hp": 3, "dir": Vector3.ZERO, "bump_cd": 0.0}
+
+
+func _tick_boss(delta: float, player_pos: Vector3) -> void:
+	if boss.is_empty() or boss.state == "gone":
+		return
+	var n: Node3D = boss.node
+	var c: Vector3 = boss.center
+	boss.t += delta
+	boss.bump_cd = maxf(0.0, boss.bump_cd - delta)
+	var to_player := Vector3(player_pos.x - n.position.x, 0, player_pos.z - n.position.z)
+	var near_arena := absf(player_pos.y - c.y) < 2.0 and Vector2(player_pos.x - c.x, player_pos.z - c.z).length() < 10.0
+	match boss.state:
+		"roam":  # slides slowly, turning to glare at the mochi
+			n.rotation.y = lerp_angle(n.rotation.y, atan2(-to_player.z, to_player.x) + PI, 1.0 - exp(-delta * 4.0))
+			n.position += to_player.normalized() * 1.2 * delta if to_player.length() > 3.0 else Vector3.ZERO
+			if near_arena and boss.t > 2.2:
+				boss.state = "wind"
+				boss.t = 0.0
+				boss_event.emit("wind")
+		"wind":  # shakes, then charges
+			n.position.y = c.y + absf(sin(boss.t * 40.0)) * 0.12
+			if boss.t > 0.8:
+				boss.state = "charge"
+				boss.t = 0.0
+				boss.dir = to_player.normalized()
+		"charge":
+			n.position += boss.dir * 11.0 * delta
+			n.position.y = c.y
+			var off := Vector2(n.position.x - c.x, n.position.z - c.z)
+			if absf(off.x) > 7.2 or absf(off.y) > 7.2:  # crashed into the edge: dizzy
+				n.position.x = c.x + clampf(off.x, -7.2, 7.2)
+				n.position.z = c.z + clampf(off.y, -7.2, 7.2)
+				boss.state = "dizzy"
+				boss.t = 0.0
+				boss.dizzy.visible = true
+				boss_event.emit("dizzy")
+		"dizzy":
+			boss.dizzy.rotation.y += delta * 6.0
+			n.rotation.z = sin(boss.t * 9.0) * 0.08
+			if boss.t > 3.2:
+				boss.state = "roam"
+				boss.t = 0.0
+				boss.dizzy.visible = false
+				n.rotation.z = 0.0
+
+
+## A spat star hit the Eraser? Only counts while it's dizzy. Returns true if the star struck it.
+func _star_hits_boss(at: Vector3) -> bool:
+	if boss.is_empty() or boss.state == "gone":
+		return false
+	var n: Node3D = boss.node
+	if Vector2(at.x - n.position.x, at.z - n.position.z).length() > 2.0 or absf(at.y - (n.position.y + 0.8)) > 1.6:
+		return false
+	if boss.state != "dizzy":
+		boss_event.emit("bounce")  # it shrugs it off
+		return true
+	boss.hp -= 1
+	_splash(n.position + Vector3(0, 1.0, 0), Color("f59ab4"))
+	var tw := n.create_tween()
+	tw.tween_property(n, "scale", Vector3(1.25, 0.7, 1.25), 0.08)
+	tw.tween_property(n, "scale", Vector3.ONE * (0.75 + 0.08 * boss.hp), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if boss.hp <= 0:
+		boss.state = "gone"
+		boss.dizzy.visible = false
+		var out := n.create_tween()
+		out.tween_interval(0.4)
+		out.tween_property(n, "scale", Vector3(1.6, 0.02, 1.6), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		out.tween_callback(n.hide)
+		get_tree().create_timer(1.0).timeout.connect(func():
+			confetti(boss.center + Vector3(0, 1.0, 0))
+			reveal_bloom("b_eraser"))
+		boss_event.emit("defeated")
+	else:
+		boss.state = "roam"
+		boss.t = -0.6
+		boss.dizzy.visible = false
+		boss_event.emit("hit")
+	return true
+
+
+func _boss_bump(pos: Vector3) -> Dictionary:
+	if boss.is_empty() or boss.state in ["gone", "dizzy"] or boss.bump_cd > 0.0:
+		return {}
+	var n: Node3D = boss.node
+	if Vector2(pos.x - n.position.x, pos.z - n.position.z).length() < 2.0 and absf(pos.y - n.position.y) < 1.8:
+		boss.bump_cd = 1.0
+		return boss
+	return {}
+
+
 # ================================================================== pages made in the level editor (editor/)
 ## A page saved by the web level editor as res://levels/<name>.json: a grid of ground heights (-1 = hole,
 ## each step half a metre, cells `cell` metres wide) plus the things placed on it.
@@ -2831,6 +3017,7 @@ func nearest_edible(pos: Vector3) -> Dictionary:
 ## Inhale `e` toward `mouth`: drifts at first, then whooshes in, squishing thin. True once it's in.
 func pull(e: Dictionary, mouth: Vector3, delta: float) -> bool:
 	e.sucking = true
+	_show_beam(e, false)  # a star's light beam would whirl around while it is gulped
 	var m: Node3D = e.node
 	var to := mouth - m.global_position
 	var dist := to.length()
@@ -2849,6 +3036,7 @@ func release(e: Dictionary) -> void:
 	if e.is_empty() or e.got:
 		return
 	e.sucking = false
+	_show_beam(e, true)
 	var tw := create_tween().set_parallel()
 	tw.tween_property(e.node, "scale", Vector3.ONE, 0.4)
 	if e.kind != "smudgie":
@@ -2997,6 +3185,7 @@ func tick(delta: float, player_pos: Vector3) -> void:
 	_update_smudgies(delta, player_pos)
 	_tick_race(delta, player_pos)
 	_tick_tide(delta)
+	_tick_boss(delta, player_pos)
 	_check_tasks()
 	for i in range(stars.size() - 1, -1, -1):
 		var s: Dictionary = stars[i]
@@ -3008,6 +3197,8 @@ func tick(delta: float, player_pos: Vector3) -> void:
 			PhysicsRayQueryParameters3D.create(n.global_position, next, 1)).is_empty()
 		n.global_position = next
 		var done: bool = hit_wall or s.t > 0.8
+		if _star_hits_boss(n.global_position):
+			done = true
 		for m in smudgies:
 			if not m.got and not m.sucking and m.node.global_position.distance_to(n.global_position) < 0.6:
 				m.got = true
@@ -3026,6 +3217,9 @@ func tick(delta: float, player_pos: Vector3) -> void:
 
 ## A Smudgie touching the mochi right now (and ready to bump again), or {}.
 func bumping(pos: Vector3) -> Dictionary:
+	var b := _boss_bump(pos)
+	if not b.is_empty():
+		return b
 	for m in smudgies:
 		if m.got or m.sucking or m.stun > 0.0 or m.bump_cd > 0.0:
 			continue
@@ -3089,3 +3283,11 @@ func _process(delta: float) -> void:
 		c.position.x += delta * 0.25
 		if c.position.x > 30.0:
 			c.position.x = -30.0
+
+
+func _show_beam(e: Dictionary, on: bool) -> void:
+	if e.kind != "bloom":
+		return
+	for c in e.node.get_children():
+		if c is MeshInstance3D and c.material_override == _beam_mat:
+			c.visible = on

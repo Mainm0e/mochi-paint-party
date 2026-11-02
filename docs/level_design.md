@@ -102,7 +102,24 @@ to the last flag, a bubble just floats).*
 Audio: each page has its own theme (Meadow "Paper Stroll", Village "Village Square" waltz, Seaside "Seaside
 Breeze"), footsteps change with the ground (grass, stone, wood, sand, water), and the tide rings a bell.
 
-## 5. Chapters 4–5 (plans to build next)
+## 4c. Chapter 4: Snowy Notebook (built)
+
+*A snowfield. Powers: **Toasty Mochi** (walk up to ice to melt it) and **Boing Mochi** (super hops, ~1.8 m).
+The frozen lake's floes are slippery; after the third star **night falls** and a path of glowing constellation
+platforms rises into the sky.* 12 stars: Frozen Lake, Ice Castle gate (Toasty), Icicle Cave (Toasty), Boing
+Cliffs, Giant Pine (Boing), Sled Trail (Boing tower + icy ramps), Night Sky, Snowball Smudgies, Hollow Log,
+Knit's 3 yarn balls, Hoot's lake race, Every Drop.
+
+## 4d. Chapter 5: The Eraser's Castle (built, the finale)
+
+*Opens once the Snowy Notebook has 5 stars.* Four rooms in a row, each needing one power and ending in a
+Bloom Star: draw bridges over a gap wider than one bridge (Sketch), melt the ice wall (Toasty), boing up the
+tall steps (Boing), stomp the switch that raises the arena bridge (Stone). **The Eraser** waits in the arena:
+it glares, winds up and charges; when it crashes into the arena edge it's dizzy, and a spat star (eat one of
+the clouds) hits it. Three hits rub it out; its Bloom Star ends the game: "The Big Canvas is painted again!",
+thanks and credits, then back to the studio. No game over at any point.
+
+## 5. Ideas for after release
 
 **Seaside (Bubble):** built, see 4b. Ideas left for later: the lighthouse beam as a moving platform at night,
 bubble rides up a waterfall, a shipwreck Trail, 3 more stars to reach 15.
@@ -130,9 +147,9 @@ towers, then a final "eat the Eraser's shadow" moment that paints the whole book
 
 | Area | Status | Needed |
 |---|---|---|
-| Chapters | Meadow, Village, Seaside built | Snowy, Castle, 4 bonus pages |
-| Powers | Puffy, Stone, Sketch, Bubble | Toasty, Boing |
-| Bosses | none | Eraser encounters (3) |
+| Chapters | all 5 built (Meadow, Village, Seaside, Snowy, Castle) + ending | 4 bonus pages |
+| Powers | all 6 (Puffy, Stone, Sketch, Bubble, Toasty, Boing) | — |
+| Bosses | the Eraser (castle arena) | more Eraser encounters |
 | Menus | main, pause, creator | options (graphics, audio, controls, rebinding, language), save slots, credits |
 | Saves | single JSON | 3 slots, Steam Cloud |
 | Steam | — | Steamworks (achievements: one per chapter, 100%, spotless pages), store page, capsule art, trailer, demo |
