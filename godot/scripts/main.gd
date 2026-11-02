@@ -303,11 +303,17 @@ func enter_level(name: String, remember := true) -> void:
 		world.map_at = save.map_at
 		world.map_new = world.stamp_for_level(_just_done)
 		_just_done = ""
+	if name == "home":  # the Home Page shows your progress: star jars, the sticker board, friends who moved in
+		var stars := {}
+		for j in World.JARS:
+			stars[j[0]] = _stars(j[0]) if world.page_exists(j[0]) else 0
+		var moved: Array = World.HOME_FRIENDS.filter(func(f): return f[2] in _page_save(f[1]).eaten).map(func(f): return f[0])
+		world.home_state = {"stars": stars, "stickers": save.stickers.duplicate(), "friends": moved}
 	world.load_level(name, eaten)
 	# on the map the mochi walks the whole book, so it is drawn bigger and the camera pulls back
 	mochi.size = 1.7 if on_map else 1.0
 	mochi.scale = Vector3.ONE * mochi.size
-	cam_dist = 10.0 if on_map else 4.2
+	cam_dist = 10.0 if on_map else (6.5 if name == "home" else 4.2)  # the Home Page is a room: see all of it
 	audio.play_music(MUSIC.get(name, "music_paper_stroll"))
 	var open_page := not name in ["home", "worldmap"]  # pages are big and open: see further across them
 	environment.fog_depth_begin = 40.0 if on_map else (28.0 if open_page else 16.0)
@@ -315,7 +321,7 @@ func enter_level(name: String, remember := true) -> void:
 	mochi.redraw_at(world.spawn_point())
 	mochi.rotation.y = PI  # face into the page (away from the camera)
 	yaw = 0.0
-	pitch = 0.7 if on_map else 0.45
+	pitch = 0.7 if on_map else (0.6 if name == "home" else 0.45)
 	follow = mochi.global_position
 	_inhaling = {}
 	if name == "home":
@@ -597,14 +603,6 @@ func _build_ui() -> void:
 	power_tag.add_child(power_label)
 	power_tag.visible = false
 	tv.add_child(power_tag)  # stacks under the card's lines, however many there are
-	var menu_btn := _button("Menu", false, 17)
-	menu_btn.anchor_left = 1.0
-	menu_btn.anchor_right = 1.0
-	menu_btn.offset_left = -100
-	menu_btn.offset_right = -16
-	menu_btn.offset_top = 14
-	menu_btn.pressed.connect(func(): set_mode(Mode.PAUSED))
-	hud.add_child(menu_btn)
 	var bottom := _vbox(4)
 	bottom.anchor_left = 0.5
 	bottom.anchor_right = 0.5

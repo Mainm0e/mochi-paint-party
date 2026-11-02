@@ -55,6 +55,9 @@ Needs Godot 4.7.2 export templates (Editor > Manage Export Templates). Then:
 - `main.gd`: flow (menu -> creator -> Home Page -> World Map -> pages), input map (registered in code), third-person camera
   (captured mouse, yaw/pitch), HUD/menus (paper cards, ink borders, `Segoe Print` font), thought clouds
   (`think()`), eating loop (`_eat`), save (`user://mochi_sketchbook.json`), the `_autotest` tour.
+- Home Page (`_build_home`): a room with the book (-> map), mirror (-> creator), star jars per chapter (`JARS`),
+  a sticker board (slot per sticker), and `HOME_FRIENDS` who move in once their quest/race star is found; main sets
+  `world.home_state` before loading it. No HUD Menu button (the mouse is captured): Esc opens the pause menu.
 - `world.gd`: `load_level("home" | "worldmap" | "meadow")` builds paper islands (StaticBody3D), doodle props (white +
   ink outline, painted later via instance uniform `albedo`), edibles (drop / power / sticker / smudgie / seal),
   checkpoints, switches + bridges, Smudgie AI, spat stars, painting ripples.

@@ -573,21 +573,60 @@ func zone_at(pos: Vector3) -> Dictionary:
 
 
 # ================================================================== Home Page
+## Doodle friends who move to the Home Page once you've helped them (their quest or race star is found).
+const HOME_FRIENDS := [
+	["pip", "meadow", "b_pip", "sprout", "c3e2a0", "Pip", "I love my new home! My bow looks great on this page."],
+	["tufts", "meadow", "b_tufts", "puff", "ffffff", "Tufts", "My fluff-puffs sleep under your bed. Shh!"],
+	["scribble", "meadow", "b_race", "pencil", "ffd86b", "Scribble", "I doodled you a picture. Well... a squiggle."],
+	["glim", "village", "b_glim", "lamp", "6b6672", "Glim", "I'll keep your page bright at night!"],
+	["postie", "village", "b_postie", "mail", "e5485e", "Postie", "No letters today. Just a hug!"],
+	["zip", "village", "b_zip", "plane", "ffffff", "Zip", "Zoom zoom! Race you round the rug!"],
+	["clack", "seaside", "b_clack", "crab", "f2788e", "Clack", "Sideways is still the best way. Click clack!"],
+	["gale", "seaside", "b_gale", "gull", "ffffff", "Gale", "I can smell the sea from here. Squawk!"],
+	["knit", "snowy", "b_knit", "mitten", "e88f8f", "Knit", "I'm knitting you a tiny scarf. Hold still!"],
+	["hoot", "snowy", "b_hoot", "owl", "c9b8a0", "Hoot", "Hoo! Cosy page you've got."],
+]
+## Star jars on the shelf, one per chapter page: page, label, lid colour.
+const STICKER_COLORS := ["a8d8a0", "f5c35b", "7fb5ec", "a585e0"]  # sticker stars on the board, by chapter
+const JARS := [["meadow", "Meadow", "a8d8a0"], ["village", "Village", "f5c35b"], ["seaside", "Seaside", "7fb5ec"], ["snowy", "Snowy", "a585e0"]]
+
+var home_state := {}   # set by main before building the Home Page: {stars: {page: n}, stickers: [gid], friends: [id]}
+
+
+## The Home Page: your own cosy corner of the sketchbook. A room on a paper page with the book (to the World
+## Map), the mirror (change your look), a shelf of star jars (one per chapter), a sticker board that fills up,
+## and the doodle friends you've helped, who move in and chat.
 func _build_home() -> void:
-	island(0, 0, 13, 12, 0.0, "f6e7d3")
-	checkpoint(Vector3(0, 0, 3.0))
+	var room := island(0, 0, 20, 16, 0.0, "f6e7d3")
+	_paint(room.get_child(1), true)
+	checkpoint(Vector3(0, 0, 4.5))
 	checkpoints[0].node.visible = false
-	# the big sketchbook you jump into
+	# the room: a back wall with a round window, low side walls, a rug
+	for w in [[0, -7.6, 20, 0.6, 3.2, "fbe3eb"], [-9.7, -3.5, 0.6, 8.8, 1.2, "fbe3eb"], [9.7, -3.5, 0.6, 8.8, 1.2, "fbe3eb"]]:
+		var wall := island(w[0], w[1], w[2], w[3], w[4], w[5], w[4])
+		_paint(wall.get_child(1), true)
+	var window := colored(_cyl(1.1, 1.1, 0.08, 24), "bfe6ff", Vector3(-7.6, 2.1, -7.25), 0.03, 0.4)
+	window.rotation.x = PI / 2.0
+	add_child(window)
+	for k in 2:  # window cross
+		var bar := colored(_box(2.2 if k == 0 else 0.08, 0.08 if k == 0 else 2.2, 0.06), "fffaf0", Vector3(-7.6, 2.1, -7.2), 0.0, 0.0)
+		add_child(bar)
+	var rug := colored(_cyl(3.4, 3.4, 0.04, 32), "f2a7b8", Vector3(0, 0.02, 0.5), 0.02, 0.1)
+	rug.scale = Vector3(1.0, 1.0, 0.75)
+	add_child(rug)
+	add_child(colored(_cyl(2.6, 2.6, 0.045, 32), "fbe3eb", Vector3(0, 0.025, 0.5), 0.0, 0.1))
+	# the big sketchbook on a low desk: it opens the World Map
 	var book := Node3D.new()
+	book.add_child(doodle(_box(3.8, 0.5, 2.6), "d9b38c", Vector3(0, 0.25, 0), 0.03, true))  # desk
 	for sx in [-1.0, 1.0]:
-		var page := doodle(_box(1.5, 0.1, 2.1), "fffaf0", Vector3(sx * 0.78, 0.55, 0), 0.025, true)
+		var page := doodle(_box(1.5, 0.1, 2.1), "fffaf0", Vector3(sx * 0.78, 1.05, 0), 0.025, true)
 		page.rotation.z = -sx * 0.18
 		book.add_child(page)
-	book.add_child(doodle(_box(3.3, 0.14, 2.3), "c86b6b", Vector3(0, 0.38, 0), 0.03, true))
-	book.add_child(doodle(_box(0.08, 0.6, 0.02), "f2c14e", Vector3(0.1, 0.25, 1.15), 0.01, true))
-	place(book, Vector3(0, 0, -3.2), 1.0, 3.5, 0.0, _box_shape(Vector3(3.3, 0.7, 2.3)), Vector3(0, 0.35, 0))
-	zone("book", Vector3(0, 0, -1.6), 1.4, "E  Open the book")
-	# a dressing mirror for the creator
+	book.add_child(doodle(_box(3.3, 0.14, 2.3), "c86b6b", Vector3(0, 0.88, 0), 0.03, true))
+	book.add_child(doodle(_box(0.08, 0.6, 0.02), "f2c14e", Vector3(0.1, 0.75, 1.15), 0.01, true))
+	place(book, Vector3(0, 0, -4.2), 1.0, 3.8, 0.0, _box_shape(Vector3(3.8, 1.2, 2.6)), Vector3(0, 0.6, 0))
+	zone("book", Vector3(0, 0, -2.4), 1.5, "E  Open the book")
+	# the mirror, for changing your look
 	var mirror := Node3D.new()
 	var frame := doodle(TorusMesh.new(), "f5c35b", Vector3(0, 1.0, 0), 0.02)
 	frame.rotation.x = PI / 2.0
@@ -598,28 +637,111 @@ func _build_home() -> void:
 	glass.scale = Vector3(0.95, 1.0, 1.3)
 	mirror.add_child(glass)
 	mirror.add_child(doodle(_cyl(0.05, 0.08, 0.5, 8), "c99a6a", Vector3(0, 0.25, 0), 0.015))
-	place(mirror, Vector3(-4.2, 0, -0.5), 1.0, 1.0, 0.5, _cyl_shape(0.35, 1.6), Vector3(0, 0.8, 0))
-	zone("mirror", Vector3(-3.4, 0, 0.2), 1.2, "E  Change my look")
-	# sticker board
-	var board := Node3D.new()
-	board.add_child(doodle(_box(1.8, 1.2, 0.1), "d9b38c", Vector3(0, 1.0, 0), 0.025, true))
-	board.add_child(doodle(_cyl(0.05, 0.05, 0.6, 6), "c99a6a", Vector3(-0.6, 0.3, 0), 0.015))
-	board.add_child(doodle(_cyl(0.05, 0.05, 0.6, 6), "c99a6a", Vector3(0.6, 0.3, 0), 0.015))
-	var label := Label3D.new()
-	label.name = "StickerLabel"
-	label.font = _ui_font()
-	label.font_size = 64
-	label.pixel_size = 0.004
-	label.modulate = Color("1f1d24")
-	label.outline_size = 0
-	label.position = Vector3(0, 1.0, 0.07)
-	board.add_child(label)
-	place(board, Vector3(4.2, 0, -0.8), 1.0, 1.4, -0.4, _box_shape(Vector3(1.8, 1.6, 0.3)), Vector3(0, 0.8, 0))
-	for p in [Vector3(-5, 0, -4.5), Vector3(5.2, 0, -4.4), Vector3(-5.3, 0, 4.2), Vector3(5.4, 0, 4.0)]:
-		_tree(p, 1.1)
-	_scatter(flower, Vector3(-2.5, 0, 3.5), 1.6, 14)
-	_scatter(flower, Vector3(3, 0, 3.8), 1.4, 12)
+	place(mirror, Vector3(-7.6, 0, -1.5), 1.0, 1.0, 0.6, _cyl_shape(0.35, 1.6), Vector3(0, 0.8, 0))
+	zone("mirror", Vector3(-6.7, 0, -0.9), 1.3, "E  Change my look")
+	# the star shelf: a jar per chapter, filling with little stars as you find Bloom Stars there
+	var shelf_c := Vector3(5.2, 0, -6.9)
+	var shelf := island(shelf_c.x, shelf_c.z, 7.0, 0.9, 1.3, "d9b38c", 0.15)
+	_paint(shelf.get_child(1), true)
+	for leg in [-3.2, 3.2]:
+		add_child(doodle(_box(0.15, 1.2, 0.7), "c99a6a", shelf_c + Vector3(leg, 0.6, 0), 0.015, true))
+	var stars: Dictionary = home_state.get("stars", {})
+	for i in JARS.size():
+		var j: Array = JARS[i]
+		var jc := shelf_c + Vector3(-2.4 + i * 1.6, 1.3, 0)
+		_star_jar(jc, j[1], j[2], int(stars.get(j[0], 0)), page_stars(j[0]))
+	# the sticker board: a slot for every sticker in the book, filled in as they're found
+	var bc := Vector3(-3.6, 0, -7.0)
+	var board := island(bc.x, bc.z, 3.2, 0.2, 2.6, "d9b38c", 1.6)
+	_paint(board.get_child(1), true)
+	var got: Array = home_state.get("stickers", [])
+	var pages := ["meadow", "village", "seaside", "snowy"]
+	for row in pages.size():
+		for col in 5:
+			var id := "%s:s%d" % [pages[row], col + 1]
+			var at := bc + Vector3(-1.2 + col * 0.6, 2.25 - row * 0.45, 0.13)
+			if id in got:
+				var st := colored(_star_mesh(0.17, 0.08, 0.03), STICKER_COLORS[row], at, 0.01, 0.2)
+				add_child(st)
+			else:
+				var slot := colored(_cyl(0.12, 0.12, 0.02, 12), "c9b08c", at, 0.0, 0.0)
+				slot.rotation.x = PI / 2.0
+				add_child(slot)
+	var count := Label3D.new()
+	count.font = _ui_font()
+	count.font_size = 40
+	count.pixel_size = 0.005
+	count.modulate = Color("1f1d24")
+	count.text = "Stickers  %d / %d" % [got.size(), pages.size() * 5]
+	count.position = bc + Vector3(0, 0.45, 0.13)
+	add_child(count)
+	# cosy bits: a bed, a lamp, plants, a little stool
+	var bed := Node3D.new()
+	bed.add_child(doodle(_box(2.4, 0.5, 3.4), "c99a6a", Vector3(0, 0.25, 0), 0.03, true))
+	bed.add_child(doodle(_box(2.2, 0.3, 3.2), "fffaf0", Vector3(0, 0.62, 0), 0.025, true))
+	bed.add_child(doodle(_box(2.3, 0.18, 2.0), "8fd0f5", Vector3(0, 0.82, 0.55), 0.02, true))   # blanket
+	bed.add_child(doodle(_sphere(0.45, 12, 6), "fffaf0", Vector3(0, 0.95, -1.15), 0.02))          # pillow
+	bed.get_child(-1).scale = Vector3(1.4, 0.45, 0.8)
+	place(bed, Vector3(-7.6, 0, -5.4), 1.0, 2.0, 0.0, _box_shape(Vector3(2.4, 0.95, 3.4)), Vector3(0, 0.47, 0))
+	var lamp := Node3D.new()
+	lamp.add_child(doodle(_cyl(0.05, 0.08, 1.6, 6), "6b6672", Vector3(0, 0.8, 0), 0.015))
+	lamp.add_child(colored(_cyl(0.18, 0.4, 0.45, 12), "ffe9a0", Vector3(0, 1.75, 0), 0.02, 0.5))
+	place(lamp, Vector3(8.6, 0, -4.8), 1.0, 0.7, 0.0, _cyl_shape(0.25, 1.6), Vector3(0, 0.8, 0))
+	for p in [Vector3(-8.8, 0, 2.5), Vector3(8.8, 0, 2.0), Vector3(-1.2, 0, -6.8)]:
+		var pot := Node3D.new()
+		pot.add_child(doodle(_cyl(0.3, 0.22, 0.45, 10), "e88f8f", Vector3(0, 0.22, 0), 0.02))
+		for k in 3:
+			var leaf := doodle(_sphere(0.28, 8, 5), "8fc98a", Vector3(cos(k * 2.1) * 0.15, 0.7 + k * 0.1, sin(k * 2.1) * 0.15), 0.02)
+			leaf.scale = Vector3(0.6, 1.2, 0.6)
+			pot.add_child(leaf)
+		place(pot, p, 1.0, 0.7, INF, _cyl_shape(0.3, 0.9), Vector3(0, 0.45, 0))
+	_scatter(flower, Vector3(-6, 0, 6.2), 1.4, 10)
+	_scatter(flower, Vector3(6.5, 0, 6.2), 1.4, 10)
+	for p in [Vector3(-9, 0, 7), Vector3(9, 0, 7)]:
+		_tree(p, 1.0)
+	# friends you've helped have moved in: they stand around the rug and chat when you talk to them
+	var moved: Array = home_state.get("friends", [])
+	var spots := [Vector3(-3.2, 0, 1.0), Vector3(3.2, 0, 1.0), Vector3(-4.6, 0, 3.4), Vector3(4.6, 0, 3.4),
+		Vector3(-2.0, 0, 5.4), Vector3(2.0, 0, 5.4), Vector3(-6.2, 0, 4.8), Vector3(6.2, 0, 4.8),
+		Vector3(-5.8, 0, 0.0), Vector3(5.8, 0, -0.4)]
+	var n := 0
+	for f in HOME_FRIENDS:
+		if f[0] in moved:
+			friend(f[0], spots[n], f[4], f[5], {"ask": f[6], "done": f[6], "thanks": f[6]}, [], f[3])
+			friends[f[0]].star = ""
+			friends[f[0]].node.rotation.y = atan2(-spots[n].x, -spots[n].z + 0.5)  # facing the rug
+			n += 1
+	if n == 0:
+		_signpost(Vector3(-3.0, 0, 2.2), "Friends you help move in here!")
 	_paint_all(true)  # the home page is always in colour
+
+
+## A glass jar on the shelf with `got` little stars inside (out of `total`), and its count underneath.
+func _star_jar(at: Vector3, label: String, lid: String, got: int, total: int) -> void:
+	var glass := StandardMaterial3D.new()
+	glass.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.albedo_color = Color(0.85, 0.94, 1.0, 0.35)
+	var jar := MeshInstance3D.new()
+	jar.mesh = _cyl(0.45, 0.45, 1.0, 16)
+	jar.material_override = glass
+	jar.position = at + Vector3(0, 0.5, 0)
+	add_child(jar)
+	add_child(colored(_cyl(0.48, 0.48, 0.14, 16), lid, at + Vector3(0, 1.07, 0), 0.02, 0.15))
+	for k in got:  # little stars piled up inside
+		var st := colored(_star_mesh(0.13, 0.06, 0.03), "ffd86b", at + Vector3(rng.randf_range(-0.25, 0.25), 0.1 + k * 0.07, rng.randf_range(-0.2, 0.2)), 0.008, 0.3)
+		st.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, 0)
+		add_child(st)
+	var text := Label3D.new()
+	text.font = _ui_font()
+	text.font_size = 36
+	text.pixel_size = 0.005
+	text.modulate = Color("1f1d24")
+	text.outline_modulate = Color.WHITE
+	text.outline_size = 10
+	text.text = "%s\n%d / %d" % [label, got, total]
+	text.position = at + Vector3(0, -0.35, 0.5)
+	add_child(text)
 
 
 func set_sticker_count(got: int, total: int) -> void:
