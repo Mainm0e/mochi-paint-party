@@ -1330,7 +1330,7 @@ func _build_village() -> void:
 	fountain.add_child(doodle(_cyl(0.25, 0.35, 1.4, 10), "e3e6ef", Vector3(0, 1.0, 0), 0.03))
 	fountain.add_child(doodle(_cyl(0.7, 0.5, 0.25, 14), "e3e6ef", Vector3(0, 1.75, 0), 0.03))
 	place(fountain, Vector3(0, 0, 12), 1.0, 0.0, 0.0, _cyl_shape(2.0, 0.5), Vector3(0, 0.25, 0))
-	bloom("b_drops", Vector3(0, 1.9, 12), true)  # every drop eaten: a star blooms out of the fountain
+	bloom("b_drops", Vector3(0, 0.5, 12), true)  # every drop eaten: a star blooms out of the fountain bowl
 	power_doodle("sketch", Vector3(-3.5, 0, 6))
 	bloom("b_sketch", Vector3(0, 0, -4))  # on the islet just across the water: the first bridge
 	var islet := island(0, -4, 2.2, 2.2, 0.0, "f6e3b4", 0.5)
@@ -1719,6 +1719,10 @@ func _build_seaside() -> void:
 	for side in [-1.0, 1.0]:
 		var pillar := island(cc.x + side * 2.8, cc.z, 1.2, 3.6, 1.6, "f2a7b8", 2.6)
 		_paint(pillar.get_child(1), true)
+	var coral_step := island(cc.x - 2.8, cc.z + 2.5, 1.3, 1.3, 0.6, "f2a7b8", 1.4)  # two coral steps up onto the arch (sticker s5)
+	_paint(coral_step.get_child(1), true)
+	coral_step = island(cc.x - 4.4, cc.z + 0.8, 1.3, 1.3, 1.5, "f2a7b8", 2.3)
+	_paint(coral_step.get_child(1), true)
 	var arch := island(cc.x, cc.z, 6.8, 3.6, 2.4, "f2a7b8", 0.8)
 	_paint(arch.get_child(1), true)
 	for r in [[-9.5, -16.5], [-8, -19.5], [-6.5, -21.5]]:  # more reef rocks from the wreck to the cave
@@ -1877,7 +1881,7 @@ func _tick_tide(delta: float) -> void:
 			var e: Dictionary = f.edible
 			if e.got or e.sucking:
 				continue
-			e.home.y = tide.level + f.over
+			e.home = Vector3(e.home.x, tide.level + f.over, e.home.z)  # (a whole new Vector3: the star bobs around its home)
 		else:
 			f.node.position.y = tide.level + f.over
 

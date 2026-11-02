@@ -128,6 +128,10 @@ Chapter 5 **The Eraser's Castle** (`_build_castle`, the finale): 4 power rooms +
 roam/wind/charge/dizzy; `_star_hits_boss` while dizzy, 3 hits; `boss_event` -> `main._on_boss`). Its star b_eraser ->
 `main._ending()` (credits card, `save.finished`). 5 stars. The game is complete start to credits.
 Tests: `--autotest` runs everything; `--autotest-late=<dir>` runs only Snowy + Castle (`_autotest_late`).
+Reachability audit (~1 min): `"$G" --headless --path godot -s res://tools/reach_audit.gd -- [page ...]` samples every
+standable surface and floods from the start with the mochi's real jump physics + each page's powers; prints any
+unreachable star/sticker/item/power/switch/friend. Run it after moving things around. (Generous: assumes sprint +
+double jump with stamina and ignores timing such as the tide.)
 
 Next candidates (see the roadmap in docs/level_design.md): hand playtest + tuning;
 camera collision (clips through props); spit bounce; the Village page /
