@@ -1,7 +1,9 @@
-# Mochi Sketchbook
+# Mochi Paint Party
 
-A cozy single-player 3D **sketchbook adventure** for PC (Windows), built in **Godot 4.7**. A squishy mochi
-eats ink drops and doodles to restore a sketchbook's color and borrow doodle powers. Full design:
+A cozy single-player 3D **painting adventure** for PC (Windows), built in **Godot 4.7** (formerly "Mochi Sketchbook").
+The world is **the Big Canvas**: a giant canvas lying on a painter's table that has lost its paint. A squishy mochi
+eats paint drops and doodles to paint the scenes back in and borrow doodle powers. Home is **My Studio** (an easel
+with the canvas you step into). Ground everywhere is woven canvas (`shaders/paper.gdshader`, name kept). Full design:
 [docs/game_design.md](docs/game_design.md) (pillars, powers, structure, milestone plan, open questions).
 
 **All characters and assets must be original.** Style references (MapleStory 2 look, Kirby-like inhale)
@@ -44,6 +46,7 @@ After rebuilding the mochi, copy assets into Godot, then re-import:
 
 Test runs (`--autotest`, `--level`, `--worldmap`) save to `user://test_run.json` (wiped at their start), never to the
 player's `mochi_sketchbook.json`. **Never delete the player's save.** Continue: `save.last` is the last page entered.
+The save lives in `app_userdata/Mochi Paint Party/`; on first start an old `Mochi Sketchbook` save is copied across.
 
 Windows build: `godot/export_presets.cfg` ("Windows Desktop", one exe with the pck embedded, includes `levels/*.json`).
 Needs Godot 4.7.2 export templates (Editor > Manage Export Templates). Then:

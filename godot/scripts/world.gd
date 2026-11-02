@@ -127,7 +127,7 @@ func spawn_point() -> Vector3:
 
 func page_name() -> String:
 	if level == "worldmap" or level == "home":
-		return "World Map" if level == "worldmap" else "Home Page"
+		return "The Big Canvas" if level == "worldmap" else "My Studio"
 	return page_title(level)
 
 
@@ -575,7 +575,7 @@ func zone_at(pos: Vector3) -> Dictionary:
 # ================================================================== Home Page
 ## Doodle friends who move to the Home Page once you've helped them (their quest or race star is found).
 const HOME_FRIENDS := [
-	["pip", "meadow", "b_pip", "sprout", "c3e2a0", "Pip", "I love my new home! My bow looks great on this page."],
+	["pip", "meadow", "b_pip", "sprout", "c3e2a0", "Pip", "I love my new home! My bow looks great in your studio."],
 	["tufts", "meadow", "b_tufts", "puff", "ffffff", "Tufts", "My fluff-puffs sleep under your bed. Shh!"],
 	["scribble", "meadow", "b_race", "pencil", "ffd86b", "Scribble", "I doodled you a picture. Well... a squiggle."],
 	["glim", "village", "b_glim", "lamp", "6b6672", "Glim", "I'll keep your page bright at night!"],
@@ -593,7 +593,7 @@ const JARS := [["meadow", "Meadow", "a8d8a0"], ["village", "Village", "f5c35b"],
 var home_state := {}   # set by main before building the Home Page: {stars: {page: n}, stickers: [gid], friends: [id]}
 
 
-## The Home Page: your own cosy corner of the sketchbook. A room on a paper page with the book (to the World
+## The Home Page ("My Studio"): your own painting studio. A room with the easel and the Big Canvas (to the World
 ## Map), the mirror (change your look), a shelf of star jars (one per chapter), a sticker board that fills up,
 ## and the doodle friends you've helped, who move in and chat.
 func _build_home() -> void:
@@ -615,17 +615,32 @@ func _build_home() -> void:
 	rug.scale = Vector3(1.0, 1.0, 0.75)
 	add_child(rug)
 	add_child(colored(_cyl(2.6, 2.6, 0.045, 32), "fbe3eb", Vector3(0, 0.025, 0.5), 0.0, 0.1))
-	# the big sketchbook on a low desk: it opens the World Map
-	var book := Node3D.new()
-	book.add_child(doodle(_box(3.8, 0.5, 2.6), "d9b38c", Vector3(0, 0.25, 0), 0.03, true))  # desk
-	for sx in [-1.0, 1.0]:
-		var page := doodle(_box(1.5, 0.1, 2.1), "fffaf0", Vector3(sx * 0.78, 1.05, 0), 0.025, true)
-		page.rotation.z = -sx * 0.18
-		book.add_child(page)
-	book.add_child(doodle(_box(3.3, 0.14, 2.3), "c86b6b", Vector3(0, 0.88, 0), 0.03, true))
-	book.add_child(doodle(_box(0.08, 0.6, 0.02), "f2c14e", Vector3(0.1, 0.75, 1.15), 0.01, true))
-	place(book, Vector3(0, 0, -4.2), 1.0, 3.8, 0.0, _box_shape(Vector3(3.8, 1.2, 2.6)), Vector3(0, 0.6, 0))
-	zone("book", Vector3(0, 0, -2.4), 1.5, "E  Open the book")
+	# the easel with the Big Canvas: step into it to reach the map of every scene
+	var easel := Node3D.new()
+	for leg in [[-1.1, 0.12], [1.1, -0.12]]:  # two front legs, leaning in
+		var l := doodle(_cyl(0.07, 0.09, 3.6, 6), "c99a6a", Vector3(leg[0], 1.75, 0.15), 0.02)
+		l.rotation = Vector3(-0.12, 0, leg[1])
+		easel.add_child(l)
+	var back_leg := doodle(_cyl(0.07, 0.09, 3.4, 6), "c99a6a", Vector3(0, 1.6, -0.7), 0.02)
+	back_leg.rotation.x = 0.35
+	easel.add_child(back_leg)
+	easel.add_child(doodle(_box(2.8, 0.12, 0.35), "c99a6a", Vector3(0, 0.95, 0.3), 0.02, true))  # the ledge
+	var canvas := Node3D.new()  # the canvas, tilted back a little, with the scenes painted on it
+	canvas.add_child(doodle(_box(2.9, 2.2, 0.14), "d9b38c", Vector3.ZERO, 0.03, true))
+	canvas.add_child(colored(_box(2.7, 2.0, 0.05), "f6efe2", Vector3(0, 0, 0.08), 0.0, 0.0))
+	for b in [[-0.7, 0.45, "a8d8a0"], [0.65, 0.5, "f5c35b"], [-0.6, -0.45, "7fb5ec"], [0.7, -0.4, "a585e0"]]:
+		var dab := colored(_cyl(0.48, 0.48, 0.04, 16), b[2], Vector3(b[0], b[1], 0.11), 0.0, 0.1)
+		dab.rotation.x = PI / 2.0
+		dab.scale = Vector3(1.0, 1.0, 0.75)
+		canvas.add_child(dab)
+	canvas.add_child(colored(_star_mesh(0.3, 0.14, 0.04), "ff9ab5", Vector3(0, 0.02, 0.14), 0.01, 0.2))  # the Ink Bloom
+	canvas.position = Vector3(0, 2.1, 0.3)
+	canvas.rotation.x = -0.12
+	easel.add_child(canvas)
+	place(easel, Vector3(0, 0, -4.4), 1.0, 2.2, 0.0, _box_shape(Vector3(2.9, 3.4, 1.0)), Vector3(0, 1.7, 0))
+	var stool := doodle(_cyl(0.45, 0.4, 0.6, 12), "e88f8f", Vector3(2.4, 0.3, -3.3), 0.02)  # the painter's stool
+	add_child(stool)
+	zone("book", Vector3(0, 0, -2.6), 1.5, "E  Step into the canvas")
 	# the mirror, for changing your look
 	var mirror := Node3D.new()
 	var frame := doodle(TorusMesh.new(), "f5c35b", Vector3(0, 1.0, 0), 0.02)
@@ -2555,21 +2570,48 @@ func stamp_open(i: int) -> bool:
 	return i == 0 or STAMPS[i - 1][0] in map_done
 
 
-## The whole book as one walkable map: an open sketchbook whose two pages hold the four chapter regions,
-## level stamps joined by dotted ink paths, the Ink Bloom in the middle and the Eraser's castle beyond the
-## top edge. Regions stay ink-only until one of their pages is painted.
+## The Big Canvas as one walkable map: a giant stretched canvas lying on the painter's table, its four
+## chapter scenes painted across it, stamps joined by dotted paint paths, the Ink Bloom in the middle and the
+## Eraser's castle beyond the top edge. Giant paint tubes, brushes and a palette lie around it. Scenes stay
+## sketch-only until enough of their Bloom Stars are found.
 func _build_worldmap() -> void:
 	var top := 0.3
 	var y := top
-	for c in clouds:  # the page clouds would hang over the map; it gets its own, off the book edges
+	for c in clouds:  # the scene clouds would hang over the map; it gets its own, off the canvas edges
 		c.queue_free()
 	clouds.clear()
-	# the open book: cover, page stack, two walkable pages, the crease
-	add_child(doodle(_box(46, 0.5, 29), "b8665f", Vector3(0, -0.55, 0), 0.06, true))
-	add_child(doodle(_box(44.5, 0.5, 27.4), "f3ead8", Vector3(0, -0.15, 0), 0.04, true))
-	island(-11.1, 0, 21.8, 26.6, top, "fbf5e6", 0.4)
-	island(11.1, 0, 21.8, 26.6, top, "fbf5e6", 0.4)
-	add_child(doodle(_box(0.25, 0.05, 26.6), "d8cdb6", Vector3(0, top + 0.01, 0), 0.0, true))
+	# the canvas: one big walkable sheet wrapped over a wooden stretcher frame, on a wooden table
+	island(0, 0, 44, 27, top, "f6efe2", 1.0)
+	for e in [[0, 13.7, 45, 0.5], [0, -13.7, 45, 0.5], [22.3, 0, 0.5, 27.9], [-22.3, 0, 0.5, 27.9]]:
+		add_child(doodle(_box(e[2], 1.1, e[3]), "d9b38c", Vector3(e[0], -0.3, e[1]), 0.04, true))
+	add_child(doodle(_box(80, 0.6, 52), "b98a63", Vector3(0, -1.2, -2), 0.06, true))  # the painter's table
+	# giant painting things lying around the canvas
+	var palette := doodle(_cyl(6.0, 6.0, 0.35, 28), "e8c99a", Vector3(-31, -0.75, 4), 0.05)
+	palette.scale = Vector3(1.0, 1.0, 0.7)
+	add_child(palette)
+	for b in [[-29, 1.5, "ff9ab5"], [-32.5, 2.5, "ffd86b"], [-34, 5.5, "8fd0f5"], [-30.5, 7.2, "a8d8a0"], [-27.5, 5.6, "b9a2ee"]]:
+		var blob := colored(_sphere(1.0, 14, 8, true), b[2], Vector3(b[0], -0.6, b[1]), 0.03, 0.2)
+		blob.scale = Vector3(1.0, 0.45, 0.8)
+		add_child(blob)
+	for k in 3:  # paint tubes
+		var tube := Node3D.new()
+		tube.add_child(doodle(_cyl(0.7, 0.7, 4.0, 12), "fffaf0", Vector3.ZERO, 0.04))
+		tube.add_child(colored(_cyl(0.72, 0.72, 1.2, 12), ["e5485e", "7fb5ec", "f5c35b"][k], Vector3(0, 0.6, 0), 0.03, 0.2))
+		tube.add_child(doodle(_cyl(0.3, 0.45, 0.8, 10), "1f1d24", Vector3(0, 2.4, 0), 0.03))
+		tube.rotation = Vector3(PI / 2.0, 0.4 + k * 0.5, 0)
+		tube.position = Vector3(29 + k * 2.2, -0.2, 6 + k * 1.5)
+		add_child(tube)
+	for k in 2:  # brushes
+		var brush := Node3D.new()
+		brush.add_child(doodle(_cyl(0.25, 0.35, 12.0, 10), ["c86b6b", "6fae8c"][k], Vector3.ZERO, 0.04))
+		brush.add_child(doodle(_cyl(0.4, 0.4, 1.0, 10), "c9c9d2", Vector3(0, 6.4, 0), 0.03))
+		brush.add_child(doodle(_cyl(0.0, 0.55, 1.8, 10), ["ff9ab5", "8fd0f5"][k], Vector3(0, 7.8, 0), 0.03))
+		brush.rotation = Vector3(PI / 2.0, 0, PI / 2.0 + 0.25 - k * 0.5)
+		brush.position = Vector3(31 - k * 3, -0.4, -6 - k * 4)
+		add_child(brush)
+	var jar := doodle(_cyl(2.6, 2.4, 5.0, 18), "cfe6f7", Vector3(-30, 1.6, -10), 0.05)
+	add_child(jar)
+	add_child(colored(_cyl(2.3, 2.3, 0.1, 18), "9fc7e8", Vector3(-30, 3.0, -10), 0.0, 0.2))  # paint water
 	# --- Chapter 1, Meadow (front left): rolling hills, trees, flowers
 	for h in [[-14.8, 7.2, 2.0], [-20.2, 4.2, 1.5], [-4.6, 12.0, 1.3], [-14.0, 1.6, 1.4], [-3.8, 5.0, 1.5]]:
 		var hill := Node3D.new()  # wrapped, so the squashed dome never scales the collider
@@ -2690,7 +2732,7 @@ func _build_worldmap() -> void:
 	hut.position = hp + Vector3(0, 0.3, 0)
 	add_child(hut)
 	_map_label("Home", hp + Vector3(0, 1.4, 0))
-	zones.append({"id": "home", "pos": hp, "radius": 1.0, "prompt": "E  Back to the Home Page"})
+	zones.append({"id": "home", "pos": hp, "radius": 1.0, "prompt": "E  Back to my Studio"})
 	for k in 8:
 		var c := cloud()
 		var side := 1.0 if k % 2 == 0 else -1.0  # off the edges of the book, so they frame it without hiding regions

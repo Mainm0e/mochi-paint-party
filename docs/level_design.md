@@ -1,4 +1,4 @@
-# Mochi Sketchbook: Level and Gameplay Plan (Steam, €10–20)
+# Mochi Paint Party: Level and Gameplay Plan (Steam, €10–20)
 
 *Senior level-design pass, 2026-11-01. Builds on [game_design.md](game_design.md) (pillars, powers, structure).*
 

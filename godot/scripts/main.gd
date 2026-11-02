@@ -1,5 +1,5 @@
 extends Node
-## Mochi Sketchbook: game flow (menu -> Home Page -> book pages), camera, input, UI and saving.
+## Mochi Paint Party: game flow (menu -> Studio -> the Big Canvas -> its scenes), camera, input, UI and saving.
 ## Everything is built in code so the project stays a handful of readable scripts.
 ## Run with `-- --autotest=<dir>` to play through the slice, save screenshots there and quit.
 
@@ -249,6 +249,11 @@ func _build_scene() -> void:
 
 
 func _load_save() -> void:
+	if save_path == SAVE_PATH and not FileAccess.file_exists(save_path):
+		# the game used to be called "Mochi Sketchbook": bring that save across once, so no progress is lost
+		var old := OS.get_user_data_dir().get_base_dir().path_join("Mochi Sketchbook").path_join("mochi_sketchbook.json")
+		if FileAccess.file_exists(old):
+			DirAccess.copy_absolute(old, ProjectSettings.globalize_path(SAVE_PATH))
 	if not FileAccess.file_exists(save_path):
 		return
 	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(save_path))
@@ -337,7 +342,7 @@ func enter_level(name: String, remember := true) -> void:
 	if on_map and not _told.has("map"):
 		_told["map"] = true
 		await get_tree().create_timer(1.0).timeout
-		think("The whole sketchbook! Hop onto a stamp and press E.", 3.5)
+		think("The whole Big Canvas! Hop onto a stamp and press E.", 3.5)
 		return
 	if not name in ["home", "worldmap"] and not _told.has("drops"):
 		_told["drops"] = true
@@ -493,9 +498,9 @@ func _build_ui() -> void:
 	var logo := _hbox(10)
 	logo.alignment = BoxContainer.ALIGNMENT_CENTER
 	logo.add_child(_label("Mochi", 42))
-	logo.add_child(_label("Sketchbook", 42, ACCENT))
+	logo.add_child(_label("Paint Party", 42, ACCENT))
 	mv.add_child(logo)
-	var sub := _label("Eat the doodles, color the book", 18, MUTED)
+	var sub := _label("Gobble the paint, colour the big canvas", 18, MUTED)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mv.add_child(sub)
 	play_btn = _button("Play", true, 22)
@@ -582,7 +587,7 @@ func _build_ui() -> void:
 	var tv := _vbox(2)
 	var name_row := _hbox(10)
 	hud_name = _label("Mochi", 20)
-	page_label = _label("Home Page", 16, MUTED)
+	page_label = _label("My Studio", 16, MUTED)
 	name_row.add_child(hud_name)
 	name_row.add_child(page_label)
 	tv.add_child(name_row)
@@ -669,8 +674,8 @@ func _build_ui() -> void:
 	# --- pause + page complete
 	var resume := _button("Keep walking", true)
 	var edit := _button("Change my mochi")
-	home_btn = _button("Back to the map")
-	var restart := _button("Restart this page")
+	home_btn = _button("Back to the Big Canvas")
+	var restart := _button("Restart this scene")
 	var to_menu := _button("Main menu")
 	resume.pressed.connect(func(): set_mode(Mode.PLAY))
 	edit.pressed.connect(func():
@@ -689,7 +694,7 @@ func _build_ui() -> void:
 	map_card.offset_left = 28
 	map_card.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var map_box := _vbox(6)
-	map_title = _label("Page map", 22)
+	map_title = _label("Scene map", 22)
 	map_box.add_child(map_title)
 	map_view = Control.new()
 	map_view.custom_minimum_size = Vector2(300, 300)
@@ -702,13 +707,13 @@ func _build_ui() -> void:
 	map_card.add_child(map_box)
 	pause_panel.add_child(map_card)
 	var keep := _button("Keep exploring")
-	var win_home := _button("Back to the map", true)
+	var win_home := _button("Back to the Big Canvas", true)
 	keep.pressed.connect(func(): win_panel.visible = false; set_mode(Mode.PLAY))
 	win_home.pressed.connect(func():
 		win_panel.visible = false
 		enter_level("worldmap")
 		set_mode(Mode.PLAY))
-	win_panel = _overlay("Page painted!", "", [win_home, keep])
+	win_panel = _overlay("Painted in full colour!", "", [win_home, keep])
 	win_text = win_panel.find_child("Text", true, false)
 	win_panel.visible = false
 	ui.add_child(win_panel)
@@ -1056,7 +1061,7 @@ func _use_zone(z: Dictionary) -> void:
 			_toast(world.page_name())
 		"stamp":
 			if z.level == "":
-				think("This page is still being drawn!", 2.2)
+				think("This part of the canvas isn't painted yet!", 2.2)
 				return
 			save.map_at = z.stamp
 			_store()

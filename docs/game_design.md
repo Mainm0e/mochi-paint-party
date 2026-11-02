@@ -1,4 +1,6 @@
-# Mochi Sketchbook: Game Design
+# Mochi Paint Party: Game Design
+
+**Theme update (2026-11-02):** the game is now **Mochi Paint Party**. The world is **the Big Canvas**, a giant canvas lying on a painter's table that has lost its paint; each chapter is a scene painted on it (the old "pages"), the ground is woven canvas, and home is **My Studio** with an easel. Older text below that says "sketchbook", "book" or "page" means the canvas and its scenes.
 
 *Status: first draft, 2026-11-01. Direction chosen: **Sketchbook Adventure**, casual with some challenge, PC (Windows) first.*
 
