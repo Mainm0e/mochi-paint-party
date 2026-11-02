@@ -13,6 +13,7 @@ config_version=5
 config/name="Mochi Paint Party"
 config/description="Make a mochi, then hop around a giant canvas, painting the colour back in."
 run/main_scene="res://scenes/main.tscn"
+config/icon="res://icon.png"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]

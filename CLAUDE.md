@@ -51,8 +51,9 @@ player's `mochi_sketchbook.json`. **Never delete the player's save.** Continue: 
 The save lives in `app_userdata/Mochi Paint Party/`; on first start an old `Mochi Sketchbook` save is copied across.
 
 Windows build: `godot/export_presets.cfg` ("Windows Desktop", one exe with the pck embedded, includes `levels/*.json`).
-Needs Godot 4.7.2 export templates (Editor > Manage Export Templates). Then:
-`"$G" --headless --path godot --export-release "Windows Desktop" build/MochiSketchbook.exe` (output is git-ignored).
+Export templates for 4.7.2 (Windows) are installed in %APPDATA%/Godot/export_templates/4.7.2.stable. Build:
+`"$G" --headless --path godot --export-release "Windows Desktop" build/MochiPaintParty.exe` (output is git-ignored),
+then zip it with `godot/build/How to play.txt` as MochiPaintParty-vX-windows.zip for a GitHub Release (uploaded by hand).
 
 ## How the game is put together
 

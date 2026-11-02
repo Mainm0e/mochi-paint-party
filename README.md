@@ -24,7 +24,12 @@ doodle friends you meet, and finally rub out the Eraser.
 
 ## Play it
 
-The game is made with [Godot 4.7](https://godotengine.org/) (free).
+**Windows (easiest):** go to [Releases](https://github.com/Mainm0e/mochi-paint-party/releases), download
+`MochiPaintParty-v1.0-windows.zip`, unzip it and double-click `MochiPaintParty.exe`. No install needed.
+If Windows says "Windows protected your PC", click **More info** then **Run anyway** (the game just isn't signed
+with a paid certificate).
+
+**From the source** (any system), with [Godot 4.7](https://godotengine.org/) (free):
 
 1. Download Godot 4.7 (standard version) and this repository (green **Code** button → Download ZIP, or `git clone`).
 2. Open Godot, choose **Import**, and pick `godot/project.godot`.
